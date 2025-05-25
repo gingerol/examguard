@@ -122,12 +122,12 @@ The initial setup of the AI Proctoring system is complete. The next crucial step
     -   [x] Sub-Task 1.5: Rebuild and restart Docker containers (multiple iterations)
     -   [x] Sub-Task 1.6: User E2E Testing and Feedback (Iterations complete. Current sensitivity for L/R/Down deemed acceptable for this stage. "Up" is logically detectable. Committed.)
 -   [ ] Task 2: Implement MongoDB Event Logging
-    -   [ ] Sub-Task 2.1: Modify `app.py` for MongoDB integration
-    -   [ ] Sub-Task 2.2: Add `/api/events` endpoint in `app.py`
-    -   [ ] Sub-Task 2.3: Modify `App.js` for Session ID and Event History Tab
-    -   [ ] Sub-Task 2.4: Rebuild and restart Docker containers
-    -   [ ] Sub-Task 2.5: Verify Event Logging and Display
-    -   [ ] Sub-Task 2.6: User E2E Testing
+    -   [x] Sub-Task 2.1: Modify `app.py` for MongoDB integration
+    -   [x] Sub-Task 2.2: Add `/api/events` endpoint in `app.py`
+    -   [x] Sub-Task 2.3: Modify `App.js` for Session ID and Event History Tab
+    -   [x] Sub-Task 2.4: Rebuild and restart Docker containers
+    -   [x] Sub-Task 2.5: Verify Event Logging and Display
+    -   [x] Sub-Task 2.6: User E2E Testing
 -   [ ] Task 3: Future Enhancements
     -   [ ] Sub-Task 3.1: Merge `feature/proctoring-enhancements` to `main`
     -   [ ] Sub-Task 3.2: Implement User Authentication (Requires detailed planning)
@@ -139,6 +139,13 @@ The initial setup of the AI Proctoring system is complete. The next crucial step
 
 -   User feedback on Sub-Task 1.6 (Attempt 6 with OR logic, H=0.07, V=0.05): Logs show gaze values still too small. Next step: Implement improved `calculate_vertical_gaze` from recommendations (Phase 2).
 +   Task 1 (Improve Eye-Tracking Sensitivity) is now committed. The sensitivity for left, right, and down is improved. "Up" detection is visible in logs, though UI display might be fleeting. Further tuning for more subtle glances can be considered a future refinement if needed. Ready to proceed to Task 2: Implement MongoDB Event Logging.
++   Sub-tasks 2.1 and 2.2 (MongoDB integration in `app.py` and `/api/events` endpoint) are complete. Proceeding to Sub-task 2.3 (Frontend `App.js` modifications).
++   Sub-task 2.3 (Frontend `App.js` modifications for Session ID and Event History Tab) is complete. Ready for Docker rebuild and testing.
++   Sub-task 2.4 (Docker rebuild and restart) is complete. Ready for verification.
++   Sub-task 2.5 (Verification of event logging and display) is complete. Events are logged to MongoDB and displayed correctly on the frontend for the active session.
++   Sub-task 2.6 (User E2E Testing) is complete. User confirms MongoDB logging and event history tab are working as expected.
++   **Task 2: Implement MongoDB Event Logging is now complete.**
++   User raised a valid point regarding production access to event logs: Students should typically not see these detailed logs. This should be addressed during Task 3.2 (User Authentication) by implementing role-based access control. The current Event History tab is suitable for development/admin views.
 
 ## 8. Lessons Learned
 *(To be documented as they arise)* 
