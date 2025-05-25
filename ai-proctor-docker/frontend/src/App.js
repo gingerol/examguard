@@ -162,25 +162,54 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, sessionId]);
 
-  // Placeholder Auth functions - to be implemented in Sub-Task 3.2
+  // Auth functions
   const handleLogin = async (e) => {
     e.preventDefault();
-    setAuthMessage({ type: 'info', text: 'Login functionality to be implemented.' });
-    // TODO: Call login API, setCurrentUser on success, store token
-    console.log("Login attempt with", authUsername, authPassword);
+    setAuthMessage({ type: '', text: '' });
+    try {
+      const response = await axios.post('http://localhost:5000/api/auth/login', { 
+        username: authUsername, 
+        password: authPassword 
+      });
+      const { access_token, username, role } = response.data;
+      localStorage.setItem('proctoring_token', access_token);
+      localStorage.setItem('proctoring_user', JSON.stringify({ username, role }));
+      setCurrentUser({ token: access_token, username, role });
+      setAuthUsername('');
+      setAuthPassword('');
+      // No need to explicitly setShowLogin(false), !currentUser will handle it
+    } catch (error) {
+      const errorMsg = error.response?.data?.msg || "Login failed. Please check your credentials or server connection.";
+      setAuthMessage({ type: 'danger', text: errorMsg });
+      console.error("Login error:", error);
+    }
   };
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    setAuthMessage({ type: 'info', text: 'Registration functionality to be implemented.' });
-    // TODO: Call register API
-    console.log("Register attempt with", authUsername, authPassword);
+    setAuthMessage({ type: '', text: '' });
+    try {
+      await axios.post('http://localhost:5000/api/auth/register', { 
+        username: authUsername, 
+        password: authPassword 
+        // Role defaults to 'student' on the backend
+      });
+      setAuthMessage({ type: 'success', text: 'Registration successful! Please login.' });
+      setShowRegister(false); // Switch to login view
+      setAuthUsername(''); // Clear username for login form
+      setAuthPassword('');
+    } catch (error) {
+      const errorMsg = error.response?.data?.msg || "Registration failed. Please try a different username or check server.";
+      setAuthMessage({ type: 'danger', text: errorMsg });
+      console.error("Registration error:", error);
+    }
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
-    // TODO: Clear token from localStorage
-    setShowLogin(true); // Show login form after logout
+    localStorage.removeItem('proctoring_token');
+    localStorage.removeItem('proctoring_user');
+    // setShowLogin(true); // This is implicitly handled by !currentUser condition
     setAuthUsername('');
     setAuthPassword('');
     setAuthMessage({ type: '', text: '' });

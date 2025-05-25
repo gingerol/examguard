@@ -118,7 +118,7 @@ The key motivations for implementing user authentication are:
     -   [x] Sub-Task 2.5: Protect relevant existing endpoints
 -   [x] Task 3: Frontend Implementation (Login UI and Auth Handling)
     -   [x] Sub-Task 3.1: Create Login/Registration UI components
-    -   [ ] Sub-Task 3.2: Implement API calls for login/registration
+    -   [x] Sub-Task 3.2: Implement API calls for login/registration
 -   [ ] Task 4: Testing and Refinement
 -   [ ] Task 5: Documentation and Merge
 
@@ -132,6 +132,7 @@ The key motivations for implementing user authentication are:
 + Sub-Task 2.4: Logout will be handled client-side by discarding the JWT. No backend `/api/logout` endpoint with token blocklisting will be implemented in this phase to maintain simplicity. Server-side logout can be a future enhancement if robust token invalidation is required.
 + Sub-Task 2.5: Protected `/api/analyze-face` (JWT required) and `/api/events` (JWT required + admin role) endpoints in `app.py`.
 + Sub-Task 3.1: Basic Login/Registration forms and conditional rendering logic added to `App.js`. Includes state for auth form inputs and a Navbar for logged-in users.
++ Sub-Task 3.2: Implemented API calls for login and registration in `App.js`. Includes storing/removing token and user info in `localStorage` and updating React state on success/failure.
 
 ## 8. Lessons Learned
 *(To be documented as they arise)* 
