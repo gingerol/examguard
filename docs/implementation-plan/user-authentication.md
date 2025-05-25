@@ -58,7 +58,7 @@ The key motivations for implementing user authentication are:
 *   **Sub-Task 2.3:** Implement `/api/login` endpoint.
     *   Action: Create a POST endpoint for user login. It should take username/password, verify credentials, and return a token (if JWT) or set a session.
     *   Success Criteria: Users can log in and receive an auth token/session.
-*   **Sub-Task 2.4:** Implement `/api/logout` endpoint (if applicable).
+*   **Sub-Task 2.4:** Implement `/api/logout` endpoint (Decision: Client-side token removal only for this phase)
     *   Action: Create an endpoint to invalidate token/session.
     *   Success Criteria: Users can log out.
 *   **Sub-Task 2.5:** Protect relevant existing endpoints.
@@ -114,7 +114,7 @@ The key motivations for implementing user authentication are:
     -   [x] Sub-Task 2.1: Add User model and helper functions to `app.py` (or a new `models.py`)
     -   [x] Sub-Task 2.2: Implement `/api/register` endpoint
     -   [x] Sub-Task 2.3: Implement `/api/login` endpoint
-    -   [ ] Sub-Task 2.4: Implement `/api/logout` endpoint (if applicable)
+    -   [x] Sub-Task 2.4: Implement `/api/logout` endpoint (Decision: Client-side token removal only for this phase)
 -   [ ] Task 3: Frontend Implementation (Login UI and Auth Handling)
 -   [ ] Task 4: Testing and Refinement
 -   [ ] Task 5: Documentation and Merge
@@ -126,6 +126,7 @@ The key motivations for implementing user authentication are:
 + Sub-Task 2.1: Initial backend setup for authentication complete. Added `Flask-JWT-Extended` and `Werkzeug` to requirements. Configured JWT in `app.py` and defined `users_collection`.
 + Sub-Task 2.2: `/api/auth/register` endpoint implemented in `app.py`. Handles new user registration, password hashing, and storage in MongoDB.
 + Sub-Task 2.3: `/api/auth/login` endpoint implemented in `app.py`. Handles credential verification and JWT generation, including user role in token claims and response.
++ Sub-Task 2.4: Logout will be handled client-side by discarding the JWT. No backend `/api/logout` endpoint with token blocklisting will be implemented in this phase to maintain simplicity. Server-side logout can be a future enhancement if robust token invalidation is required.
 
 ## 8. Lessons Learned
 *(To be documented as they arise)* 
