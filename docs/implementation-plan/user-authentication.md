@@ -81,6 +81,7 @@ The key motivations for implementing user authentication are:
 *   **Sub-Task 3.5:** Modify Event History Tab Access.
     *   Action: Ensure only users with an 'admin' role can see the "Event History" tab. Student users should not see it.
     *   Success Criteria: Event History tab visibility is role-based.
+*   **Sub-Task 3.6:** Rebuild and restart Docker containers
 
 ### Task 4: Testing and Refinement
 *   **Sub-Task 4.1:** Backend API Testing.
@@ -122,7 +123,9 @@ The key motivations for implementing user authentication are:
     -   [x] Sub-Task 3.3: Manage authentication state (e.g., token, user info)
     -   [x] Sub-Task 3.4: Implement route protection / conditional rendering
     -   [x] Sub-Task 3.5: Modify Event History Tab Access
+    -   [ ] Sub-Task 3.6: Rebuild and restart Docker containers
 -   [ ] Task 4: Testing and Refinement
+    -   [ ] Sub-Task 4.1: Backend API Testing.
 -   [ ] Task 5: Documentation and Merge
 
 ## 7. Executor's Feedback or Assistance Requests
