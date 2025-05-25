@@ -33,6 +33,28 @@ users_collection = db.users
 face_model = get_face_detector()
 landmark_model = get_landmark_model()
 
+@app.route('/api/auth/register', methods=['POST'])
+def register_user():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    role = data.get('role', 'student') # Default role to 'student'
+
+    if not username or not password:
+        return jsonify({"msg": "Missing username or password"}), 400
+
+    if users_collection.find_one({"username": username}):
+        return jsonify({"msg": "Username already exists"}), 409 # 409 Conflict
+
+    hashed_password = generate_password_hash(password)
+    new_user = {
+        "username": username,
+        "password_hash": hashed_password,
+        "role": role
+    }
+    users_collection.insert_one(new_user)
+    return jsonify({"msg": "User created successfully"}), 201
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "ok", "message": "AI Proctoring system is running"})
