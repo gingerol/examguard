@@ -111,6 +111,8 @@ The key motivations for implementing user authentication are:
     -   [x] Sub-Task 1.2: Design the User model (Schema defined for MongoDB)
     -   [x] Sub-Task 1.3: Plan for password hashing (Decision: werkzeug.security)
 -   [ ] Task 2: Backend Implementation (Authentication API)
+    -   [x] Sub-Task 2.1: Add User model and helper functions to `app.py` (or a new `models.py`)
+    -   [ ] Sub-Task 2.2: Implement `/api/register` endpoint
 -   [ ] Task 3: Frontend Implementation (Login UI and Auth Handling)
 -   [ ] Task 4: Testing and Refinement
 -   [ ] Task 5: Documentation and Merge
@@ -119,6 +121,7 @@ The key motivations for implementing user authentication are:
 *(To be filled by Executor)*
 + Sub-Task 0.1: Development branch `feature/user-authentication` created and initial planning documents committed.
 + Task 1: Design phase complete. Authentication strategy (JWT with Flask-JWT-Extended), User Model (username, password_hash, role in MongoDB 'users' collection), and password hashing (werkzeug.security) have been decided and documented in this plan.
++ Sub-Task 2.1: Initial backend setup for authentication complete. Added `Flask-JWT-Extended` and `Werkzeug` to requirements. Configured JWT in `app.py` and defined `users_collection`.
 
 ## 8. Lessons Learned
 *(To be documented as they arise)* 

@@ -8,9 +8,15 @@ from face_detector import get_face_detector, find_faces # Assumes face_detector.
 from face_landmarks import get_landmark_model, detect_marks # Assumes face_landmarks.py is in the same directory
 import datetime
 from pymongo import MongoClient
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity
 
 app = Flask(__name__)
 CORS(app)
+
+# Configure JWT
+app.config["JWT_SECRET_KEY"] = os.environ.get('FLASK_JWT_SECRET_KEY', 'super-secret-dev-key') # Change this in production!
+jwt = JWTManager(app)
 
 # Initialize MongoDB client
 # Ensure MONGO_URI is set in your environment variables for Docker
@@ -18,6 +24,7 @@ mongo_uri = os.environ.get('MONGO_URI', 'mongodb://mongodb:27017/')
 client = MongoClient(mongo_uri)
 db = client.proctoring_db
 events_collection = db.proctoring_events
+users_collection = db.users
 
 # Initialize face detection models
 # These will be initialized when the Docker container starts.
