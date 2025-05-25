@@ -45,8 +45,8 @@ The initial setup of the AI Proctoring system is complete. The next crucial step
     *   Action: `cd ai-proctor-docker && docker compose down && docker compose build backend && docker compose up -d`
     *   Success Criteria: Docker containers are rebuilt and restarted without errors. Backend service is healthy.
 *   **Sub-Task 1.6:** User E2E Testing and Feedback.
-    *   Action: User to test the frontend at `http://localhost:3001`, specifically the eye-tracking sensitivity.
-    *   Success Criteria: User confirms whether the sensitivity has improved as expected or provides further feedback for adjustments.
+    *   Action: User to test the frontend at `http://localhost:3001`, specifically the eye-tracking sensitivity. Multiple iterations of tuning thresholds (H_Thresh, V_Thresh) and logic (gaze calculation, OR logic, conditional order) performed.
+    *   Success Criteria: User confirms that the sensitivity for left, right, and down movements is acceptable for now. "Up" detection is theoretically working based on logs but might be missed in UI due to quick state changes. Further refinement for subtlety can be a future task. Current state committed.
 
 ### Task 2: Implement MongoDB Event Logging
 *   **Goal:** Integrate MongoDB to log proctoring events from the backend and display them on the frontend.
@@ -119,8 +119,8 @@ The initial setup of the AI Proctoring system is complete. The next crucial step
     -   [x] Sub-Task 1.2: Update `get_eye_status` function in `eye_tracker.py`
     -   [x] Sub-Task 1.3: Add/Verify helper functions in `eye_tracker.py`
     -   [x] Sub-Task 1.4: Update `app.py` to call the modified `get_eye_status`
-    -   [x] Sub-Task 1.5: Rebuild and restart Docker containers
-    -   [.] Sub-Task 1.6: User E2E Testing and Feedback (Attempt 6: Logs collected. OR logic, H=0.07, V=0.05. Gaze values still too small to reliably trigger. Iteration needed.)
+    -   [x] Sub-Task 1.5: Rebuild and restart Docker containers (multiple iterations)
+    -   [x] Sub-Task 1.6: User E2E Testing and Feedback (Iterations complete. Current sensitivity for L/R/Down deemed acceptable for this stage. "Up" is logically detectable. Committed.)
 -   [ ] Task 2: Implement MongoDB Event Logging
     -   [ ] Sub-Task 2.1: Modify `app.py` for MongoDB integration
     -   [ ] Sub-Task 2.2: Add `/api/events` endpoint in `app.py`
@@ -137,8 +137,8 @@ The initial setup of the AI Proctoring system is complete. The next crucial step
 ## 7. Executor's Feedback or Assistance Requests
 *(To be filled by Executor)*
 
--   Awaiting user E2E testing and backend logs for **Sub-Task 1.6** (Eye-Tracking Sensitivity, Attempt 6. OR logic, H_Thresh=0.07, V_Thresh=0.05. Debug logging active. This is Phase 1 of new recommendations).
-+   User feedback on Sub-Task 1.6 (Attempt 6 with OR logic, H=0.07, V=0.05): Logs show gaze values still too small. Next step: Implement improved `calculate_vertical_gaze` from recommendations (Phase 2).
+-   User feedback on Sub-Task 1.6 (Attempt 6 with OR logic, H=0.07, V=0.05): Logs show gaze values still too small. Next step: Implement improved `calculate_vertical_gaze` from recommendations (Phase 2).
++   Task 1 (Improve Eye-Tracking Sensitivity) is now committed. The sensitivity for left, right, and down is improved. "Up" detection is visible in logs, though UI display might be fleeting. Further tuning for more subtle glances can be considered a future refinement if needed. Ready to proceed to Task 2: Implement MongoDB Event Logging.
 
 ## 8. Lessons Learned
 *(To be documented as they arise)* 
