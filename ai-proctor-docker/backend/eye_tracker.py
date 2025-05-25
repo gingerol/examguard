@@ -162,151 +162,106 @@ def nothing(x):
 
 # cv2.createTrackbar("threshold", "image", 75, 255, nothing) # Commented out
 
-def get_eye_status(img, shape, threshold_val=75):
+# ---- START OF USER PROVIDED CODE ----
+def eye_aspect_ratio(eye):
+    # Compute the euclidean distances between the vertical eye landmarks
+    A = np.linalg.norm(eye[1] - eye[5])
+    B = np.linalg.norm(eye[2] - eye[4])
+    # Compute the euclidean distance between the horizontal eye landmarks
+    C = np.linalg.norm(eye[0] - eye[3])
+    # Compute the eye aspect ratio
+    ear = (A + B) / (2.0 * C)
+    return ear
+
+def calculate_horizontal_gaze(eye):
+    # Calculate the position of the pupil relative to the eye corners
+    # Ensure eye points are integers for indexing if they come from landmarks directly
+    eye = np.array(eye, dtype=np.int32) 
+    eye_width = np.linalg.norm(eye[0] - eye[3])
+    if eye_width == 0:
+        return 0
+    # Assuming pupil center can be approximated by averaging specific landmark points
+    # The user's code implies eye[1], eye[2], eye[4], eye[5] are relevant for pupil.
+    # These points are [37, 38, 40, 41] for left eye and [43, 44, 46, 47] for right eye if 'eye' is one of these sets.
+    pupil_center = (eye[1] + eye[2] + eye[4] + eye[5]) / 4.0
+    eye_center = (eye[0] + eye[3]) / 2.0
+    gaze_ratio = (pupil_center[0] - eye_center[0]) / eye_width
+    return gaze_ratio
+
+def calculate_vertical_gaze(eye):
     """
-    Determines the eye status (looking direction) based on facial landmarks and an image.
-    This function is designed to be called by the backend API.
-
-    Parameters
-    ----------
-    img : np.uint8
-        The image containing the face.
-    shape : Array of uint32
-        Facial landmarks (equivalent to 'marks' in app.py).
-    threshold_val : int, optional
-        Threshold value for image processing. Default is 75.
-
-    Returns
-    -------
-    status : str
-        "forward", "left", "right", or "up"
+    Calculate vertical gaze direction - Simplified attempt for better centering around 0.
+    Assumes 'eye' is a 6-element array of [x,y] coordinates for one eye.
+    Landmarks: 0=corner, 1=top, 2=top, 3=corner, 4=bottom, 5=bottom (approx)
+    e.g., marks[36:42] for left eye: [36, 37, 38, 39, 40, 41]
     """
-    # These are global in the original script, ensure they are accessible or passed if needed.
-    # left = [36, 37, 38, 39, 40, 41]
-    # right = [42, 43, 44, 45, 46, 47]
-    # kernel = np.ones((9, 9), np.uint8)
+    eye = np.array(eye, dtype=np.float32)
+
+    # Vertical distance between landmark 1 (e.g. 37) and 4 (e.g. 40)
+    # These are generally the highest and lowest points of the 6 landmarks for an eye.
+    eye_height = np.linalg.norm(eye[1] - eye[4]) 
+    if eye_height == 0:
+        return 0
+        
+    # Approximate pupil y-coordinate using average of y-coords of points 1,2,4,5
+    # (Relative to the eye landmark indices: eye[1], eye[2], eye[4], eye[5])
+    pupil_y_approx = (eye[1][1] + eye[2][1] + eye[4][1] + eye[5][1]) / 4.0
     
-    mask = np.zeros(img.shape[:2], dtype=np.uint8)
-    mask, end_points_left = eye_on_mask(mask.copy(), left, shape) # Pass copy of mask
-    mask_right_only = np.zeros(img.shape[:2], dtype=np.uint8) # Separate mask for right eye points
-    mask_right_only, end_points_right = eye_on_mask(mask_right_only, right, shape)
+    # Approximate eye center y-coordinate using average of y-coords of points 1 and 4
+    eye_center_y_approx = (eye[1][1] + eye[4][1]) / 2.0
     
-    # Combine masks if necessary or process separately. For eye region extraction, separate is fine.
-    # The original track_eye dilates a combined mask. Let's try to mimic that for eye extraction.
-    # Create a combined mask for dilation then split for contouring by ROI later if needed.
-    # However, simpler is to get eye regions based on landmarks directly.
-
-    # Simplified eye region extraction and processing based on track_eye logic
-    eyes = cv2.bitwise_and(img, img, mask=cv2.dilate(mask, kernel, 5)) # Left eye region
-    eyes_right_region = cv2.bitwise_and(img, img, mask=cv2.dilate(mask_right_only, kernel, 5)) # Right eye region
-
-    # Process left eye
-    mask_left_processed = (eyes == [0, 0, 0]).all(axis=2)
-    eyes[mask_left_processed] = [255, 255, 255]
-    eyes_gray_left = cv2.cvtColor(eyes, cv2.COLOR_BGR2GRAY)
+    gaze_ratio = ((pupil_y_approx - eye_center_y_approx) / eye_height) * 3.0
     
-    # Process right eye (need to combine logic carefully)
-    # For the right eye, we need its gray representation from its specific region
-    mask_right_processed = (eyes_right_region == [0,0,0]).all(axis=2)
-    eyes_right_region[mask_right_processed] = [255,255,255]
-    eyes_gray_right = cv2.cvtColor(eyes_right_region, cv2.COLOR_BGR2GRAY)
+    return gaze_ratio
+
+def get_eye_status(marks, face_region=None):
+    """
+    Analyze eye landmarks to determine gaze direction
+    Returns: "forward", "left", "right", or "up" based on eye position
+    """
+    # Extract eye landmarks for left and right eyes
+    # landmarks 36-41 are left eye, 42-47 are right eye
+    left_eye_pts = marks[36:42].astype(np.float32) # Use float for calculations
+    right_eye_pts = marks[42:48].astype(np.float32)
     
-    mid = int((shape[42][0] + shape[39][0]) // 2) # Midpoint calculation based on landmarks
-
-    _, thresh_left = cv2.threshold(eyes_gray_left, threshold_val, 255, cv2.THRESH_BINARY)
-    thresh_left_processed = process_thresh(thresh_left)
+    # Calculate horizontal gaze ratio for both eyes
+    # The helper functions expect a 6-point eye model
+    left_gaze = calculate_horizontal_gaze(left_eye_pts)
+    right_gaze = calculate_horizontal_gaze(right_eye_pts)
     
-    _, thresh_right = cv2.threshold(eyes_gray_right, threshold_val, 255, cv2.THRESH_BINARY)
-    thresh_right_processed = process_thresh(thresh_right)
-
-    # The contouring function expects a segment of the thresholded image.
-    # We need to be careful with coordinates here. Contouring is done on the eye region.
-    # The contouring function in the original script uses slicing on a combined thresholded image of both eyes.
-    # Let's adapt by passing the relevant part of the thresholded eye image directly.
-
-    # Extract the ROI for the left eye from its processed threshold image
-    lx, ly, l_rx, l_by = end_points_left # These are absolute coords
-    # Ensure ROI is within bounds and non-empty
-    roi_thresh_left = thresh_left_processed[ly:l_by, lx:l_rx]
+    # Calculate vertical gaze ratio for both eyes
+    left_vertical = calculate_vertical_gaze(left_eye_pts)
+    right_vertical = calculate_vertical_gaze(right_eye_pts)
     
-    # Extract the ROI for the right eye
-    rx_start, ry_start, r_rx_end, r_by_end = end_points_right
-    roi_thresh_right = thresh_right_processed[ry_start:r_by_end, rx_start:r_rx_end]
+    # Thresholds based on observed values
+    horizontal_threshold = 0.035  # Increased sensitivity (was 0.05)
+    vertical_threshold = 0.075     # Slightly increased sensitivity for UP (was 0.08), multiplier in calc_vertical_gaze is 3.0
+    
+    # Log calculated gaze values for debugging
+    print(f"[DEBUG] Gaze Values: L_H: {left_gaze:.4f}, R_H: {right_gaze:.4f}, L_V: {left_vertical:.4f}, R_V: {right_vertical:.4f}, H_Thresh: {horizontal_threshold}, V_Thresh: {vertical_threshold}", flush=True)
 
-    # We need to adjust how `contouring` is called. It expects `img` for drawing circles, which we don't need.
-    # It also expects `mid` for right eye adjustment, which is complex if we pass isolated eye images.
-    # Let's simplify the return logic from `print_eye_pos`
-    # The `contouring` function itself calls `find_eyeball_position` which returns 0 (normal), 1 (ratio > 3), 2 (ratio < 0.33), 3 (y_ratio < 0.33)
-    # These correspond to: 1: left, 2: right, 3: up, 0: forward/normal.
+    # Determine gaze direction
+    # Consider if both eyes need to agree or if one is dominant
+    # Changing to OR logic: if EITHER eye meets the criteria.
+    # Swapped left/right logic based on user feedback (camera view vs user view)
+    # Added explicit "down" check and prioritized vertical checks.
+    if left_vertical < -vertical_threshold or right_vertical < -vertical_threshold:
+        return "up"
+    elif left_vertical > vertical_threshold or right_vertical > vertical_threshold: # DOWN
+        return "down"
+    elif left_gaze > horizontal_threshold or right_gaze > horizontal_threshold: # Pupil moved to camera's right (user's LEFT)
+        return "left" 
+    elif left_gaze < -horizontal_threshold or right_gaze < -horizontal_threshold: # Pupil moved to camera's left (user's RIGHT)
+        return "right"
+    else:
+        return "forward"
 
-    # Stubbing img for contouring as it's only used for cv2.circle
-    # We need to pass the relevant section of the *original* thresholded image to contouring
-    # Or, adjust contouring to work with the ROI and relative coordinates.
-    # For simplicity, let's try to get cx, cy from the ROI itself and then use original end_points.
+# ---- END OF USER PROVIDED CODE ----
 
-    # Left eye eyeball position
-    eyeball_pos_left = None
-    if roi_thresh_left.size > 0 :
-        # Adapt contouring or its internal logic for isolated eye image
-        cnts_left, _ = cv2.findContours(roi_thresh_left, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        try:
-            if cnts_left:
-                cnt_left = max(cnts_left, key=cv2.contourArea)
-                M_left = cv2.moments(cnt_left)
-                if M_left['m00'] != 0:
-                    cx_left_roi = int(M_left['m10']/M_left['m00'])
-                    cy_left_roi = int(M_left['m01']/M_left['m00'])
-                    # Convert ROI cx, cy to absolute image cx, cy
-                    cx_left_abs = lx + cx_left_roi
-                    cy_left_abs = ly + cy_left_roi
-                    eyeball_pos_left = find_eyeball_position(end_points_left, cx_left_abs, cy_left_abs)
-        except Exception as e:
-            print(f"Error processing left eye: {e}") # For debugging in container logs
-            pass 
-
-    # Right eye eyeball position
-    eyeball_pos_right = None
-    if roi_thresh_right.size > 0:
-        cnts_right, _ = cv2.findContours(roi_thresh_right, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        try:
-            if cnts_right:
-                cnt_right = max(cnts_right, key=cv2.contourArea)
-                M_right = cv2.moments(cnt_right)
-                if M_right['m00'] != 0:
-                    cx_right_roi = int(M_right['m10']/M_right['m00'])
-                    cy_right_roi = int(M_right['m01']/M_right['m00'])
-                    # Convert ROI cx, cy to absolute image cx, cy
-                    cx_right_abs = rx_start + cx_right_roi
-                    cy_right_abs = ry_start + cy_right_roi
-                    eyeball_pos_right = find_eyeball_position(end_points_right, cx_right_abs, cy_right_abs)
-        except Exception as e:
-            print(f"Error processing right eye: {e}") # For debugging
-            pass 
-
-    # Determine overall status based on left and right eye positions
-    # This logic is based on `print_eye_pos`
-    if eyeball_pos_left is not None and eyeball_pos_right is not None:
-        if eyeball_pos_left == eyeball_pos_right and eyeball_pos_left != 0:
-            if eyeball_pos_left == 1:
-                return "left"
-            elif eyeball_pos_left == 2:
-                return "right"
-            elif eyeball_pos_left == 3:
-                return "up"
-        # If they disagree or one is undetermined, or both are 0, consider forward
-        return "forward" 
-    elif eyeball_pos_left is not None and eyeball_pos_left != 0:
-        # Only left eye conclusive
-        if eyeball_pos_left == 1: return "left"
-        if eyeball_pos_left == 2: return "right"
-        if eyeball_pos_left == 3: return "up"
-    elif eyeball_pos_right is not None and eyeball_pos_right != 0:
-        # Only right eye conclusive
-        if eyeball_pos_right == 1: return "left"
-        if eyeball_pos_right == 2: return "right"
-        if eyeball_pos_right == 3: return "up"
-
-    return "forward" # Default / undetermined / both eyes looking forward
+#The existing get_eye_status function (approximately from line 178 to 309 in the previous file view) is replaced by the code above.
+#The following is the old track_eye function, which should remain if it's used elsewhere or for reference,
+#but it's not directly called by app.py anymore for the primary eye status.
+#If it's not used, it could be removed to clean up. For now, keeping it.
 
 def track_eye(video_path=None):
 

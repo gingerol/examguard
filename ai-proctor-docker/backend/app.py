@@ -23,7 +23,9 @@ def health_check():
 
 @app.route('/api/analyze-face', methods=['POST'])
 def analyze_face():
+    print("[INFO] /api/analyze-face endpoint hit", flush=True)
     if 'image' not in request.files:
+        print("[ERROR] No image provided in request", flush=True)
         return jsonify({"error": "No image provided"}), 400
         
     file = request.files['image']
@@ -45,7 +47,7 @@ def analyze_face():
 
     face = faces[0] # Process the first detected face
     marks = detect_marks(img, landmark_model, face)
-    eye_status = get_eye_status(img, marks)
+    eye_status = get_eye_status(marks)
     
     # Constructing response based on the original guide's details
     response_data = {
