@@ -1,5 +1,33 @@
 # Scratchpad
 
+## Current Task Focus
+
+**Overall Goal:** Implement Advanced Proctoring Features (Sound Detection and Screen Monitoring).
+
+**Current Phase:** Planning
+
+**Active Implementation Plans:**
+1.  `docs/implementation-plan/sound-detection.md`
+2.  `docs/implementation-plan/screen-monitoring.md`
+
+**Completed Tasks:**
+*   User Authentication: `docs/implementation-plan/user-authentication.md` (Merged via PR #2)
+
+## Key Information & Links
+
+*   GitHub Repository: [https://github.com/gingerol/examguard](https://github.com/gingerol/examguard)
+*   User Authentication PR (Merged): [https://github.com/gingerol/examguard/pull/2](https://github.com/gingerol/examguard/pull/2)
+
+## Lessons Learned (Chronological)
+
+*   **[2025-05-25] Docker Module Not Found:** If a Python package specified in `requirements.txt` consistently fails to import in a Docker container (`ModuleNotFoundError`) despite clean rebuilds (`--no-cache`, `down --rmi all -v`) and no errors during the `pip install -r requirements.txt` step in the Docker build log, try adding a separate, explicit `RUN pip install --no-cache-dir <package_name>` for that specific package in the Dockerfile. This can sometimes force the installation or provide more specific error messages. (Related to `Flask-JWT-Extended` issue during User Authentication task).
+*   **[YYYY-MM-DD]**: Placeholder for future lessons.
+
+## Notes & Reminders
+
+*   For Sound Detection and Screen Monitoring, thorough research into browser APIs and user permission handling will be crucial.
+*   Decide which advanced feature to plan in detail first: Sound Detection or Screen Monitoring.
+
 ## Current Task
 - **Task:** [NEW] Implement User Authentication
 - **Implementation Plan:** [`docs/implementation-plan/user-authentication.md`](docs/implementation-plan/user-authentication.md)
