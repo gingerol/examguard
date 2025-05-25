@@ -23,6 +23,40 @@ function App() {
   const [authPassword, setAuthPassword] = useState('');
   const [authMessage, setAuthMessage] = useState({ type: '', text: '' });
 
+  // Effect to load user from localStorage on initial render
+  useEffect(() => {
+    const storedToken = localStorage.getItem('proctoring_token');
+    const storedUser = localStorage.getItem('proctoring_user');
+    if (storedToken && storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        setCurrentUser({ token: storedToken, ...user });
+      } catch (e) {
+        console.error("Error parsing stored user data:", e);
+        localStorage.removeItem('proctoring_token');
+        localStorage.removeItem('proctoring_user');
+      }
+    }
+  }, []); // Empty dependency array means this runs once on mount
+
+  // Setup Axios interceptor to include JWT token in requests
+  useEffect(() => {
+    const interceptor = axios.interceptors.request.use(
+      config => {
+        const token = localStorage.getItem('proctoring_token');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      error => Promise.reject(error)
+    );
+    // Clean up the interceptor when the component unmounts
+    return () => {
+      axios.interceptors.request.eject(interceptor);
+    };
+  }, []); // Empty dependency array, so it runs once on mount
+
   const base64ToBlob = (base64, mimeType) => {
     const byteCharacters = atob(base64);
     const byteArrays = [];

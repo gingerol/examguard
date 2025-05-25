@@ -119,6 +119,8 @@ The key motivations for implementing user authentication are:
 -   [x] Task 3: Frontend Implementation (Login UI and Auth Handling)
     -   [x] Sub-Task 3.1: Create Login/Registration UI components
     -   [x] Sub-Task 3.2: Implement API calls for login/registration
+    -   [x] Sub-Task 3.3: Manage authentication state (e.g., token, user info)
+    -   [ ] Sub-Task 3.4: Implement route protection / conditional rendering
 -   [ ] Task 4: Testing and Refinement
 -   [ ] Task 5: Documentation and Merge
 
@@ -133,6 +135,7 @@ The key motivations for implementing user authentication are:
 + Sub-Task 2.5: Protected `/api/analyze-face` (JWT required) and `/api/events` (JWT required + admin role) endpoints in `app.py`.
 + Sub-Task 3.1: Basic Login/Registration forms and conditional rendering logic added to `App.js`. Includes state for auth form inputs and a Navbar for logged-in users.
 + Sub-Task 3.2: Implemented API calls for login and registration in `App.js`. Includes storing/removing token and user info in `localStorage` and updating React state on success/failure.
++ Sub-Task 3.3: Added `useEffect` hooks to `App.js` to load stored auth state from `localStorage` on app start and to set up an Axios interceptor for automatically attaching JWT to requests.
 
 ## 8. Lessons Learned
 *(To be documented as they arise)* 
