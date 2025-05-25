@@ -9,7 +9,7 @@ from face_landmarks import get_landmark_model, detect_marks # Assumes face_landm
 import datetime
 from pymongo import MongoClient
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity
+from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity, get_jwt
 
 app = Flask(__name__)
 CORS(app)
@@ -79,8 +79,10 @@ def health_check():
     return jsonify({"status": "ok", "message": "AI Proctoring system is running"})
 
 @app.route('/api/analyze-face', methods=['POST'])
+@jwt_required()
 def analyze_face():
-    print("[INFO] /api/analyze-face endpoint hit", flush=True)
+    current_user_identity = get_jwt_identity()
+    print(f"[INFO] /api/analyze-face endpoint hit by user: {current_user_identity}", flush=True)
     if 'image' not in request.files:
         print("[ERROR] No image provided in request", flush=True)
         # Log event for no image provided - though client should prevent this
@@ -153,7 +155,17 @@ def analyze_face():
     return jsonify(response_data)
 
 @app.route('/api/events', methods=['GET'])
+@jwt_required()
 def get_events():
+    # Get user claims from the JWT
+    # The role was stored in additional_claims when the token was created
+    # We can access it via get_jwt() function
+    claims = get_jwt()
+    user_role = claims.get("role", "student") # Default to student if role somehow missing
+
+    if user_role != 'admin':
+        return jsonify({"msg": "Administration rights required to access event logs."}), 403 # Forbidden
+
     session_id = request.args.get('session_id')
     limit = request.args.get('limit', default=50, type=int) # Default to 50 events, allow override
 

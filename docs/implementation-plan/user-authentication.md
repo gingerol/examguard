@@ -115,6 +115,7 @@ The key motivations for implementing user authentication are:
     -   [x] Sub-Task 2.2: Implement `/api/register` endpoint
     -   [x] Sub-Task 2.3: Implement `/api/login` endpoint
     -   [x] Sub-Task 2.4: Implement `/api/logout` endpoint (Decision: Client-side token removal only for this phase)
+    -   [x] Sub-Task 2.5: Protect relevant existing endpoints
 -   [ ] Task 3: Frontend Implementation (Login UI and Auth Handling)
 -   [ ] Task 4: Testing and Refinement
 -   [ ] Task 5: Documentation and Merge
@@ -127,6 +128,7 @@ The key motivations for implementing user authentication are:
 + Sub-Task 2.2: `/api/auth/register` endpoint implemented in `app.py`. Handles new user registration, password hashing, and storage in MongoDB.
 + Sub-Task 2.3: `/api/auth/login` endpoint implemented in `app.py`. Handles credential verification and JWT generation, including user role in token claims and response.
 + Sub-Task 2.4: Logout will be handled client-side by discarding the JWT. No backend `/api/logout` endpoint with token blocklisting will be implemented in this phase to maintain simplicity. Server-side logout can be a future enhancement if robust token invalidation is required.
++ Sub-Task 2.5: Protected `/api/analyze-face` (JWT required) and `/api/events` (JWT required + admin role) endpoints in `app.py`.
 
 ## 8. Lessons Learned
 *(To be documented as they arise)* 
