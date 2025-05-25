@@ -286,10 +286,10 @@ The goal is to set up the development and operational environment for the AI Pro
         *   Success Criteria: Receives a success JSON response (e.g., `{"status": "ok", ...}`).
     *   Sub-Task 8.3: Verify frontend service.
         *   Action: `curl http://localhost:3001` and open `http://localhost:3001` in a browser.
-        *   Success Criteria: `curl` returns HTML content. Browser shows the React application.
+        *   Success Criteria: `curl` returns HTML content. Browser shows the React application (displaying webcam).
     *   Sub-Task 8.4: User Validation (Manual E2E Test).
-        *   Action: User to perform a basic end-to-end test of the proctoring system via the browser.
-        *   Success Criteria (for user): Basic proctoring functionality is working as expected.
+        *   Action: User to perform a basic end-to-end test by clicking "Start Monitoring" and observing if face analysis (eye status, looking away) is reported from the webcam feed.
+        *   Success Criteria (for user): Basic proctoring functionality (webcam monitoring and status updates) is working as expected.
 
 ## Project Status Board
 *(Reset for Dockerized plan)*
@@ -317,8 +317,8 @@ The goal is to set up the development and operational environment for the AI Pro
 - [ ] Task 8: Final Verification
     - [ ] Sub-Task 8.1: Check container logs for errors
     - [ ] Sub-Task 8.2: Verify backend service
-    - [ ] Sub-Task 8.3: Verify frontend service
-    - [ ] Sub-Task 8.4: User Validation (Manual E2E Test)
+    - [x] Sub-Task 8.3: Verify frontend service (curl successful, user confirms browser shows webcam)
+    - [ ] Sub-Task 8.4: User Validation (Manual E2E Test - webcam monitoring)
 
 ## Executor's Feedback or Assistance Requests
 - Task 1 (Initialize Git and Create Feature Branch `feature/setup-environment-docker`) is complete.
@@ -345,5 +345,8 @@ The goal is to set up the development and operational environment for the AI Pro
 + Next steps: Rebuild backend image, restart services, and check logs again.
 + Backend logs now clean. Frontend logs clean.
 + Backend health check `curl http://localhost:5000/api/health` successful.
-+ Frontend `curl http://localhost:3001` successful.
-+ Waiting for user to test frontend at `http://localhost:3001` and perform E2E validation.
++ Frontend `curl http://localhost:3001` successful. User confirms browser shows webcam feed.
++ Waiting for user to test "Start Monitoring" functionality at `http://localhost:3001` and perform E2E validation of webcam analysis.
++ **E2E Validation Complete:** User confirmed that webcam monitoring starts, and status/event logs are updated (e.g., "Status: Monitoring: Attentive (forward)", "Event Log: ...Student may be looking away..."). This confirms basic E2E functionality.
++ **User Feedback on Sensitivity:** User noted that the eye tracking sensitivity might be low, requiring substantial movement to trigger "looking away" events. This is valuable feedback for future model tuning/improvement tasks.
++ All tasks for setting up the Dockerized environment are now complete.
