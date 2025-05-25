@@ -6,6 +6,8 @@
 
 ## Detailed Steps (from Implementation Plan)
 *(To be filled by Executor as tasks from `docs/implementation-plan/user-authentication.md` are completed)*
+- Task 0: Setup Development Branch - Complete
+- Task 1: Design Authentication Strategy and User Model - Complete
 
 ## Lessons Learned
 - [YYYY-MM-DD] Initial lesson entry.
@@ -15,7 +17,7 @@
 
 Status: New plan created. Ready to begin execution.
 
-Next Steps: Proceed with Task 0: Setup Development Branch from `docs/implementation-plan/user-authentication.md`.
+Next Steps: Proceed with Task 2: Backend Implementation (Authentication API) from `docs/implementation-plan/user-authentication.md`.
 
 *   **[2025-05-24]** Initial OS-specific commands (`apt update`) are not portable. Always verify target OS or use containerization for broader compatibility.
 *   **[2025-05-24]** AI/ML helper scripts often have dependencies on specific model files. Ensure these are included in the deployment package/Docker image (`Proctoring-AI/models` directory).

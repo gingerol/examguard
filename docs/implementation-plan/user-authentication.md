@@ -35,14 +35,17 @@ The key motivations for implementing user authentication are:
 *   **Sub-Task 1.1:** Research and decide on an authentication mechanism.
     *   Options: Flask-Login (session-based), Flask-JWT-Extended (token-based).
     *   Considerations: Simplicity for this phase, security, scalability.
-    *   Decision: (To be made by Planner/Executor, lean towards JWT for statelessness which is good for APIs).
+    *   Decision: **JWT (JSON Web Tokens) using `Flask-JWT-Extended` library.** This provides stateless authentication suitable for our API-driven architecture.
     *   Success Criteria: A clear authentication strategy is chosen and documented.
 *   **Sub-Task 1.2:** Design the User model.
-    *   Fields: `username` (unique), `password_hash`, `role` (e.g., 'student', 'admin').
-    *   Storage: MongoDB collection (e.g., `users`).
+    *   Fields: 
+        *   `username`: String, unique, required.
+        *   `password_hash`: String, required.
+        *   `role`: String, required (values: 'student', 'admin'), default: 'student'.
+    *   Storage: MongoDB collection named `users`.
     *   Success Criteria: User model schema defined.
 *   **Sub-Task 1.3:** Plan for password hashing.
-    *   Action: Choose a strong hashing algorithm (e.g., `werkzeug.security.generate_password_hash` and `check_password_hash`).
+    *   Action: Use `werkzeug.security.generate_password_hash` for creating password hashes and `werkzeug.security.check_password_hash` for verification.
     *   Success Criteria: Password hashing strategy documented.
 
 ### Task 2: Backend Implementation (Authentication API)
@@ -101,9 +104,12 @@ The key motivations for implementing user authentication are:
 ## 6. Project Status Board
 *(To be filled by Executor)*
 
--   [ ] Task 0: Setup Development Branch
-    -   [ ] Sub-Task 0.1: Create and switch to a new Git feature branch
--   [ ] Task 1: Design Authentication Strategy and User Model
+-   [x] Task 0: Setup Development Branch
+    -   [x] Sub-Task 0.1: Create and switch to a new Git feature branch
+-   [x] Task 1: Design Authentication Strategy and User Model
+    -   [x] Sub-Task 1.1: Research and decide on an authentication mechanism (Decision: JWT with Flask-JWT-Extended)
+    -   [x] Sub-Task 1.2: Design the User model (Schema defined for MongoDB)
+    -   [x] Sub-Task 1.3: Plan for password hashing (Decision: werkzeug.security)
 -   [ ] Task 2: Backend Implementation (Authentication API)
 -   [ ] Task 3: Frontend Implementation (Login UI and Auth Handling)
 -   [ ] Task 4: Testing and Refinement
@@ -111,6 +117,8 @@ The key motivations for implementing user authentication are:
 
 ## 7. Executor's Feedback or Assistance Requests
 *(To be filled by Executor)*
++ Sub-Task 0.1: Development branch `feature/user-authentication` created and initial planning documents committed.
++ Task 1: Design phase complete. Authentication strategy (JWT with Flask-JWT-Extended), User Model (username, password_hash, role in MongoDB 'users' collection), and password hashing (werkzeug.security) have been decided and documented in this plan.
 
 ## 8. Lessons Learned
 *(To be documented as they arise)* 
