@@ -1,0 +1,6 @@
+pymongo
+python-dotenv
+numpy # Often a dependency for CV/ML
+Flask-JWT-Extended
+Werkzeug
+# Add dlib if face_landmarks.py from Proctoring-AI requires it. 

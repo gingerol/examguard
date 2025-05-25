@@ -8,9 +8,15 @@ from face_detector import get_face_detector, find_faces # Assumes face_detector.
 from face_landmarks import get_landmark_model, detect_marks # Assumes face_landmarks.py is in the same directory
 import datetime
 from pymongo import MongoClient
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity, get_jwt
 
 app = Flask(__name__)
 CORS(app)
+
+# Configure JWT
+app.config["JWT_SECRET_KEY"] = os.environ.get('FLASK_JWT_SECRET_KEY', 'super-secret-dev-key') # Change this in production!
+jwt = JWTManager(app)
 
 # Initialize MongoDB client
 # Ensure MONGO_URI is set in your environment variables for Docker
@@ -18,6 +24,7 @@ mongo_uri = os.environ.get('MONGO_URI', 'mongodb://mongodb:27017/')
 client = MongoClient(mongo_uri)
 db = client.proctoring_db
 events_collection = db.proctoring_events
+users_collection = db.users
 
 # Initialize face detection models
 # These will be initialized when the Docker container starts.
@@ -26,13 +33,56 @@ events_collection = db.proctoring_events
 face_model = get_face_detector()
 landmark_model = get_landmark_model()
 
+@app.route('/api/auth/register', methods=['POST'])
+def register_user():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    role = data.get('role', 'student') # Default role to 'student'
+
+    if not username or not password:
+        return jsonify({"msg": "Missing username or password"}), 400
+
+    if users_collection.find_one({"username": username}):
+        return jsonify({"msg": "Username already exists"}), 409 # 409 Conflict
+
+    hashed_password = generate_password_hash(password)
+    new_user = {
+        "username": username,
+        "password_hash": hashed_password,
+        "role": role
+    }
+    users_collection.insert_one(new_user)
+    return jsonify({"msg": "User created successfully"}), 201
+
+@app.route('/api/auth/login', methods=['POST'])
+def login_user():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+
+    if not username or not password:
+        return jsonify({"msg": "Missing username or password"}), 400
+
+    user = users_collection.find_one({"username": username})
+
+    if user and check_password_hash(user['password_hash'], password):
+        # Include user's role in the JWT claims
+        additional_claims = {"role": user.get("role", "student")} 
+        access_token = create_access_token(identity=username, additional_claims=additional_claims)
+        return jsonify(access_token=access_token, username=username, role=user.get("role", "student")), 200
+    else:
+        return jsonify({"msg": "Bad username or password"}), 401
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "ok", "message": "AI Proctoring system is running"})
 
 @app.route('/api/analyze-face', methods=['POST'])
+@jwt_required()
 def analyze_face():
-    print("[INFO] /api/analyze-face endpoint hit", flush=True)
+    current_user_identity = get_jwt_identity()
+    print(f"[INFO] /api/analyze-face endpoint hit by user: {current_user_identity}", flush=True)
     if 'image' not in request.files:
         print("[ERROR] No image provided in request", flush=True)
         # Log event for no image provided - though client should prevent this
@@ -52,6 +102,7 @@ def analyze_face():
         event_data = {
             "timestamp": datetime.datetime.utcnow(),
             "session_id": session_id,
+            "username": current_user_identity,
             "event_type": "no_face_detected",
             "details": "No face was detected in the provided image."
         }
@@ -62,6 +113,7 @@ def analyze_face():
     base_event_data = {
         "timestamp": datetime.datetime.utcnow(),
         "session_id": session_id,
+        "username": current_user_identity
     }
 
     if len(faces) > 1:
@@ -83,7 +135,7 @@ def analyze_face():
     
     # Log face analyzed event
     analyzed_event_data = {
-        **base_event_data, # uses the timestamp from when analysis started
+        **base_event_data, # uses the timestamp and username from when analysis started
         "event_type": "face_analyzed",
         "details": {
             "eye_status": eye_status,
@@ -105,7 +157,17 @@ def analyze_face():
     return jsonify(response_data)
 
 @app.route('/api/events', methods=['GET'])
+@jwt_required()
 def get_events():
+    # Get user claims from the JWT
+    # The role was stored in additional_claims when the token was created
+    # We can access it via get_jwt() function
+    claims = get_jwt()
+    user_role = claims.get("role", "student") # Default to student if role somehow missing
+
+    if user_role != 'admin':
+        return jsonify({"msg": "Administration rights required to access event logs."}), 403 # Forbidden
+
     session_id = request.args.get('session_id')
     limit = request.args.get('limit', default=50, type=int) # Default to 50 events, allow override
 
