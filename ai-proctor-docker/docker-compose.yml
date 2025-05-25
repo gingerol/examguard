@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: ai-proctor-mongodb
+    ports:
+      - "27017:27017" # Expose if direct access needed, otherwise internal only
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - ai_proctor_net
+
+  backend:
+    build: ./backend
+    container_name: ai-proctor-backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongodb
+    environment:
+      # For app.py to connect to MongoDB inside Docker network:
+      MONGO_URI: mongodb://mongodb:27017/ai_proctor_db
+      # The app.py needs to be updated to use this MONGO_URI
+      # Example (in app.py):
+      # from pymongo import MongoClient
+      # import os
+      # client = MongoClient(os.getenv('MONGO_URI'))
+      # db = client.get_default_database() # or client['ai_proctor_db']
+    networks:
+      - ai_proctor_net
+
+  frontend:
+    build: ./frontend
+    container_name: ai-proctor-frontend
+    ports:
+      - "3001:80" # Map host port 3001 to Nginx container port 80
+    depends_on:
+      - backend
+    networks:
+      - ai_proctor_net
+
+networks:
+  ai_proctor_net:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local 

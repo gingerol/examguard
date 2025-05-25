@@ -1,0 +1,9 @@
+opencv-python
+tensorflow # Consider specific version if known, e.g., tensorflow==2.x
+Flask
+flask-cors
+gunicorn
+pymongo
+python-dotenv
+numpy # Often a dependency for CV/ML
+# Add dlib if face_landmarks.py from Proctoring-AI requires it. 
