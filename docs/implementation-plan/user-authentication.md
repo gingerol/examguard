@@ -123,7 +123,7 @@ The key motivations for implementing user authentication are:
     -   [x] Sub-Task 3.3: Manage authentication state (e.g., token, user info)
     -   [x] Sub-Task 3.4: Implement route protection / conditional rendering
     -   [x] Sub-Task 3.5: Modify Event History Tab Access
-    -   [ ] Sub-Task 3.6: Rebuild and restart Docker containers
+    -   [x] Sub-Task 3.6: Rebuild and restart Docker containers
 -   [ ] Task 4: Testing and Refinement
     -   [ ] Sub-Task 4.1: Backend API Testing.
 -   [ ] Task 5: Documentation and Merge
@@ -142,6 +142,7 @@ The key motivations for implementing user authentication are:
 + Sub-Task 3.3: Added `useEffect` hooks to `App.js` to load stored auth state from `localStorage` on app start and to set up an Axios interceptor for automatically attaching JWT to requests.
 + Sub-Task 3.4: Conditional rendering in `App.js` (displaying auth forms or main app based on `currentUser` state) effectively protects the main application UI. API calls are protected by backend JWT checks via the Axios interceptor.
 + Sub-Task 3.5: Event History tab in `App.js` is now conditionally rendered based on `currentUser.role === 'admin'`.
++ Sub-Task 3.6: Docker containers rebuilt and restarted to apply all authentication feature changes.
 
 ## 8. Lessons Learned
 *(To be documented as they arise)* 
