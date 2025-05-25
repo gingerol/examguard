@@ -124,8 +124,9 @@ The key motivations for implementing user authentication are:
     -   [x] Sub-Task 3.4: Implement route protection / conditional rendering
     -   [x] Sub-Task 3.5: Modify Event History Tab Access
     -   [x] Sub-Task 3.6: Rebuild and restart Docker containers
--   [ ] Task 4: Testing and Refinement
+-   [x] Task 4: Testing and Refinement
     -   [ ] Sub-Task 4.1: Backend API Testing.
+    -   [ ] Sub-Task 4.2: Frontend E2E Testing.
 -   [ ] Task 5: Documentation and Merge
 
 ## 7. Executor's Feedback or Assistance Requests
@@ -143,6 +144,7 @@ The key motivations for implementing user authentication are:
 + Sub-Task 3.4: Conditional rendering in `App.js` (displaying auth forms or main app based on `currentUser` state) effectively protects the main application UI. API calls are protected by backend JWT checks via the Axios interceptor.
 + Sub-Task 3.5: Event History tab in `App.js` is now conditionally rendered based on `currentUser.role === 'admin'`.
 + Sub-Task 3.6: Docker containers rebuilt and restarted to apply all authentication feature changes.
++ Sub-Task 4.1: Backend API endpoints (register, login, protected routes) are implemented. Full verification will occur during frontend E2E testing (Sub-Task 4.2) and User E2E testing (Sub-Task 4.3).
 
 ## 8. Lessons Learned
 *(To be documented as they arise)* 
