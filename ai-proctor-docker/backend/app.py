@@ -55,6 +55,25 @@ def register_user():
     users_collection.insert_one(new_user)
     return jsonify({"msg": "User created successfully"}), 201
 
+@app.route('/api/auth/login', methods=['POST'])
+def login_user():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+
+    if not username or not password:
+        return jsonify({"msg": "Missing username or password"}), 400
+
+    user = users_collection.find_one({"username": username})
+
+    if user and check_password_hash(user['password_hash'], password):
+        # Include user's role in the JWT claims
+        additional_claims = {"role": user.get("role", "student")} 
+        access_token = create_access_token(identity=username, additional_claims=additional_claims)
+        return jsonify(access_token=access_token, username=username, role=user.get("role", "student")), 200
+    else:
+        return jsonify({"msg": "Bad username or password"}), 401
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "ok", "message": "AI Proctoring system is running"})
