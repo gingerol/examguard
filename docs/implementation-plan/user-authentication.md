@@ -93,6 +93,9 @@ The key motivations for implementing user authentication are:
 *   **Sub-Task 4.3:** User E2E Testing.
     *   Action: User to verify the entire authentication system.
     *   Success Criteria: User confirms the authentication system meets requirements.
+*   **Sub-Task 4.4:** Enhance Event Logging with User Identity.
+    *   Action: Modify backend to include `username` in event data. Modify frontend to display `username` in the Event History table for admins.
+    *   Success Criteria: Admin event log clearly shows which user generated each event.
 
 ### Task 5: Documentation and Merge
 *   **Sub-Task 5.1:** Update documentation.
@@ -125,9 +128,13 @@ The key motivations for implementing user authentication are:
     -   [x] Sub-Task 3.5: Modify Event History Tab Access
     -   [x] Sub-Task 3.6: Rebuild and restart Docker containers
 -   [x] Task 4: Testing and Refinement
-    -   [ ] Sub-Task 4.1: Backend API Testing.
-    -   [ ] Sub-Task 4.2: Frontend E2E Testing.
--   [ ] Task 5: Documentation and Merge
+    -   [x] Sub-Task 4.1: Backend API Testing.
+    -   [x] Sub-Task 4.2: Frontend E2E Testing.
+    -   [x] Sub-Task 4.3: User E2E Testing.
+    -   [x] Sub-Task 4.4: Enhance Event Logging with User Identity.
+-   [x] Task 5: Documentation and Merge
+    -   [x] Sub-Task 5.1: Update documentation.
+    -   [ ] Sub-Task 5.2: Merge `feature/user-authentication` to `main`.
 
 ## 7. Executor's Feedback or Assistance Requests
 *(To be filled by Executor)*
@@ -145,6 +152,14 @@ The key motivations for implementing user authentication are:
 + Sub-Task 3.5: Event History tab in `App.js` is now conditionally rendered based on `currentUser.role === 'admin'`.
 + Sub-Task 3.6: Docker containers rebuilt and restarted to apply all authentication feature changes.
 + Sub-Task 4.1: Backend API endpoints (register, login, protected routes) are implemented. Full verification will occur during frontend E2E testing (Sub-Task 4.2) and User E2E testing (Sub-Task 4.3).
++ **BLOCKER RESOLVED (Task 4.2):** Encountered persistent `ModuleNotFoundError: No module named 'flask_jwt_extended'` in the backend container, even after multiple rebuilds (`--no-cache`, `down --rmi all -v`).
+    + **Root Cause Analysis:** The exact reason why `pip install -r requirements.txt` did not reliably install `Flask-JWT-Extended` is unclear, but it seemed to fail silently for this specific package within the Docker build.
+    + **Solution:** Modified `ai-proctor-docker/backend/Dockerfile` to include an explicit `RUN pip install --no-cache-dir Flask-JWT-Extended` command *after* the general `RUN pip install --no-cache-dir -r requirements.txt` command. This forced the installation and resolved the module loading issue. Backend now starts correctly.
++ **Sub-Task 4.1 & 4.2 Completed:** Backend API testing and Frontend E2E testing are now complete. All core authentication and authorization functionalities (registration, login, logout, role-based UI for Event History, protected API access for proctoring and event logs) have been verified for both 'student' and 'admin' roles. The core proctoring functionality remains operational for both user types.
++ **Sub-Task 4.3 Completed (with feedback):** User E2E testing confirmed overall system functionality. Key feedback: Admin event logs lack user distinction, making it hard to correlate events/sessions to specific users. This was addressed in Sub-Task 4.4.
++ **Sub-Task 4.4 Completed:** Event logging enhanced. Backend now stores `username` with each event. Frontend admin view displays "All Event Logs" (not filtered by admin's session), includes a "User" column, a "Session ID" column, and formats the "Details" column for better readability. This successfully addresses the feedback from Sub-Task 4.3.
++ **Sub-Task 5.1 Completed:** Created `ai-proctor-docker/README.md` documenting the services, environment variables (especially `FLASK_JWT_SECRET_KEY` and `MONGO_URI`), API endpoints (authentication, proctoring, events), user roles, and basic run instructions.
 
 ## 8. Lessons Learned
-*(To be documented as they arise)* 
+*(To be documented as they arise)*
++ [2025-05-25] If a Python package specified in `requirements.txt` consistently fails to import in a Docker container (`ModuleNotFoundError`) despite clean rebuilds (`--no-cache`, `down --rmi all -v`) and no errors during the `pip install -r requirements.txt` step in the Docker build log, try adding a separate, explicit `RUN pip install --no-cache-dir <package_name>` for that specific package in the Dockerfile. This can sometimes force the installation or provide more specific error messages. 

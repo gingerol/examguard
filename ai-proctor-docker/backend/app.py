@@ -102,6 +102,7 @@ def analyze_face():
         event_data = {
             "timestamp": datetime.datetime.utcnow(),
             "session_id": session_id,
+            "username": current_user_identity,
             "event_type": "no_face_detected",
             "details": "No face was detected in the provided image."
         }
@@ -112,6 +113,7 @@ def analyze_face():
     base_event_data = {
         "timestamp": datetime.datetime.utcnow(),
         "session_id": session_id,
+        "username": current_user_identity
     }
 
     if len(faces) > 1:
@@ -133,7 +135,7 @@ def analyze_face():
     
     # Log face analyzed event
     analyzed_event_data = {
-        **base_event_data, # uses the timestamp from when analysis started
+        **base_event_data, # uses the timestamp and username from when analysis started
         "event_type": "face_analyzed",
         "details": {
             "eye_status": eye_status,

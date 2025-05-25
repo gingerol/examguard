@@ -21,6 +21,9 @@ COPY requirements.txt .
 # Ensure all dependencies in requirements.txt are compatible with the Python version and each other
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Explicitly install Flask-JWT-Extended to try and isolate the issue
+RUN pip install --no-cache-dir Flask-JWT-Extended
+
 # Copy application code
 # This includes app.py and the helper modules (face_detector.py, etc.)
 COPY . .

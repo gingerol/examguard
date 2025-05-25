@@ -176,9 +176,17 @@ function App() {
   }, [isMonitoring, offlineMode]); // Rerun if isMonitoring or offlineMode changes
   
   const fetchEvents = async () => {
-    if (!sessionId) return;
+    // if (!sessionId) return; // Removed this check, admin might not have a relevant session_id to filter by initially
     try {
-      const response = await axios.get(`http://localhost:5000/api/events?session_id=${sessionId}&limit=100`);
+      let url = 'http://localhost:5000/api/events?limit=100';
+      // For admins, fetch all events unless a specific session_id filter is implemented later
+      // For students, it might make sense to only fetch their own session_id if this view were available to them
+      // However, current logic hides this tab for students.
+      // if (currentUser && currentUser.role !== 'admin' && sessionId) {
+      //   url = `http://localhost:5000/api/events?session_id=${sessionId}&limit=100`;
+      // }
+      // For now, admin sees all events. If a filter is added later, this logic will need to adapt.
+      const response = await axios.get(url);
       setEvents(response.data);
     } catch (error) {
       console.error("Failed to fetch events:", error);
@@ -391,38 +399,36 @@ function App() {
           </Tab>
           {currentUser && currentUser.role === 'admin' && (
             <Tab eventKey="events" title="Event History">
-              <Row className="justify-content-center mb-3">
-                <Col md={10} lg={8}>
-                  <Button variant="secondary" onClick={fetchEvents} className="mb-3">Refresh Events</Button>
-                  <Table striped bordered hover responsive size="sm">
+              <Row className="mt-3">
+                <Col>
+                  <h4>All Event Logs</h4>
+                  <Table striped bordered hover responsive>
                     <thead>
                       <tr>
+                        <th>#</th>
                         <th>Timestamp</th>
+                        <th>User</th>
+                        <th>Session ID</th>
                         <th>Event Type</th>
                         <th>Details</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {events.length === 0 && (
-                        <tr>
-                          <td colSpan="3" className="text-center">No events recorded for this session yet.</td>
-                        </tr>
-                      )}
-                      {events.map((event) => (
-                        <tr key={event._id}>
+                      {events.map((event, index) => (
+                        <tr key={event._id || index}>
+                          <td>{index + 1}</td>
                           <td>{new Date(event.timestamp).toLocaleString()}</td>
+                          <td>{event.username}</td>
+                          <td>{event.session_id}</td>
                           <td>{event.event_type}</td>
                           <td>
-                            {typeof event.details === 'object' ? (
-                              <ul className="list-unstyled mb-0">
-                                {event.details.eye_status && <li>Eye Status: {event.details.eye_status}</li>}
-                                {typeof event.details.looking_away !== 'undefined' && <li>Looking Away: {event.details.looking_away.toString()}</li>}
-                                {typeof event.details.face_count !== 'undefined' && <li>Face Count: {event.details.face_count}</li>}
-                                {!event.details.eye_status && !event.details.looking_away && !event.details.face_count && <span>{JSON.stringify(event.details)}</span>}
+                            {typeof event.details === 'object' && event.details !== null ? (
+                              <ul style={{ paddingLeft: '15px', marginBottom: '0' }}>
+                                {Object.entries(event.details).map(([key, value]) => (
+                                  <li key={key}>{`${key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}: ${value === true ? 'Yes' : value === false ? 'No' : value}`}</li>
+                                ))}
                               </ul>
-                            ) : (
-                              event.details
-                            )}
+                            ) : event.details}
                           </td>
                         </tr>
                       ))}
