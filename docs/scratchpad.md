@@ -9,6 +9,8 @@
 - Task 0: Setup Development Branch - Complete
 - Task 1: Design Authentication Strategy and User Model - Complete
 - Task 2: Backend Implementation (Authentication API) - Complete
+- Task 3: Frontend Implementation (Login UI and Auth Handling)
+    - Sub-Task 3.1: Create Login/Registration UI components - Complete
 
 ## Lessons Learned
 - [YYYY-MM-DD] Initial lesson entry.

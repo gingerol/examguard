@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import axios from 'axios';
-import { Container, Row, Col, Button, Alert, Tab, Tabs, Table } from 'react-bootstrap';
+import { Container, Row, Col, Button, Alert, Tab, Tabs, Table, Form, Nav, Navbar } from 'react-bootstrap';
 // Ensure 'bootstrap/dist/css/bootstrap.min.css' is imported in index.js or here
 
 function App() {
@@ -14,6 +14,14 @@ function App() {
   const [sessionId, setSessionId] = useState(`session_${new Date().getTime()}`);
   const [events, setEvents] = useState([]);
   const [activeTab, setActiveTab] = useState('monitor');
+
+  // Auth state
+  const [currentUser, setCurrentUser] = useState(null); // Will store { token, username, role }
+  const [showLogin, setShowLogin] = useState(true); // Show login form by default if not authenticated
+  const [showRegister, setShowRegister] = useState(false); // Controls visibility of registration form
+  const [authUsername, setAuthUsername] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authMessage, setAuthMessage] = useState({ type: '', text: '' });
 
   const base64ToBlob = (base64, mimeType) => {
     const byteCharacters = atob(base64);
@@ -154,122 +162,214 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, sessionId]);
 
-  return (
-    <Container className="mt-4">
-      <h1 className="text-center mb-4">AI Proctoring System</h1>
-      <p className="text-center text-muted mb-3">Session ID: {sessionId}</p>
+  // Placeholder Auth functions - to be implemented in Sub-Task 3.2
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setAuthMessage({ type: 'info', text: 'Login functionality to be implemented.' });
+    // TODO: Call login API, setCurrentUser on success, store token
+    console.log("Login attempt with", authUsername, authPassword);
+  };
 
-      <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} id="proctoring-tabs" className="mb-3">
-        <Tab eventKey="monitor" title="Monitoring">
-          <Row className="justify-content-center mb-3">
-            <Col md={8} lg={6}>
-              <div className="position-relative border bg-light p-2" style={{ minHeight: '380px' }}>
-                <Webcam
-                  audio={false}
-                  ref={webcamRef}
-                  screenshotFormat="image/jpeg"
-                  width="100%"
-                  height="auto"
-                  videoConstraints={{
-                    width: { ideal: 640 },
-                    height: { ideal: 480 },
-                    facingMode: "user"
-                  }}
-                  className="img-fluid"
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setAuthMessage({ type: 'info', text: 'Registration functionality to be implemented.' });
+    // TODO: Call register API
+    console.log("Register attempt with", authUsername, authPassword);
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    // TODO: Clear token from localStorage
+    setShowLogin(true); // Show login form after logout
+    setAuthUsername('');
+    setAuthPassword('');
+    setAuthMessage({ type: '', text: '' });
+  };
+
+  // Render Login/Register forms if not authenticated
+  if (!currentUser) {
+    return (
+      <Container className="mt-5">
+        <Row className="justify-content-center">
+          <Col md={6} lg={4}>
+            <h2 className="text-center mb-4">{showRegister ? 'Register' : 'Login'}</h2>
+            {authMessage.text && <Alert variant={authMessage.type || 'info'}>{authMessage.text}</Alert>}
+            <Form onSubmit={showRegister ? handleRegister : handleLogin}>
+              <Form.Group className="mb-3" controlId="formBasicEmail">
+                <Form.Label>Username</Form.Label>
+                <Form.Control 
+                  type="text" 
+                  placeholder="Enter username" 
+                  value={authUsername} 
+                  onChange={(e) => setAuthUsername(e.target.value)} 
+                  required 
                 />
-                {offlineMode && (
-                  <div className="position-absolute top-0 end-0 m-2 p-2 bg-warning text-dark rounded shadow-sm">
-                    <strong>OFFLINE MODE</strong>
-                  </div>
-                )}
-              </div>
-            </Col>
-          </Row>
-          
-          <Row className="justify-content-center mb-3">
-            <Col md={8} lg={6} className="d-flex justify-content-around">
-              <Button 
-                variant={isMonitoring ? "danger" : "success"} 
-                onClick={toggleMonitoring}
-                size="lg"
-              >
-                {isMonitoring ? "Stop Monitoring" : "Start Monitoring"}
+              </Form.Group>
+
+              <Form.Group className="mb-3" controlId="formBasicPassword">
+                <Form.Label>Password</Form.Label>
+                <Form.Control 
+                  type="password" 
+                  placeholder="Password" 
+                  value={authPassword} 
+                  onChange={(e) => setAuthPassword(e.target.value)} 
+                  required 
+                />
+              </Form.Group>
+              <Button variant="primary" type="submit" className="w-100">
+                {showRegister ? 'Register' : 'Login'}
               </Button>
-              
-              {offlineMode && (
+            </Form>
+            <Button 
+              variant="link" 
+              onClick={() => { 
+                setShowRegister(!showRegister); 
+                setAuthMessage({ type: '', text: '' }); 
+                setAuthUsername(''); 
+                setAuthPassword(''); 
+              }} 
+              className="mt-3 d-block text-center"
+            >
+              {showRegister ? 'Already have an account? Login' : 'Need an account? Register'}
+            </Button>
+          </Col>
+        </Row>
+      </Container>
+    );
+  }
+
+  // Main application UI (if authenticated)
+  return (
+    <>
+      <Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
+        <Container>
+          <Navbar.Brand href="#">AI Proctoring System</Navbar.Brand>
+          <Navbar.Toggle aria-controls="basic-navbar-nav" />
+          <Navbar.Collapse id="basic-navbar-nav">
+            <Nav className="ms-auto">
+              {currentUser && <Navbar.Text className="me-3">Signed in as: {currentUser.username} ({currentUser.role})</Navbar.Text>}
+              {currentUser && <Button variant="outline-light" onClick={handleLogout}>Logout</Button>}
+            </Nav>
+          </Navbar.Collapse>
+        </Container>
+      </Navbar>
+
+      <Container className="mt-4">
+        <h1 className="text-center mb-4">AI Proctoring System</h1>
+        <p className="text-center text-muted mb-3">Session ID: {sessionId}</p>
+
+        <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} id="proctoring-tabs" className="mb-3">
+          <Tab eventKey="monitor" title="Monitoring">
+            <Row className="justify-content-center mb-3">
+              <Col md={8} lg={6}>
+                <div className="position-relative border bg-light p-2" style={{ minHeight: '380px' }}>
+                  <Webcam
+                    audio={false}
+                    ref={webcamRef}
+                    screenshotFormat="image/jpeg"
+                    width="100%"
+                    height="auto"
+                    videoConstraints={{
+                      width: { ideal: 640 },
+                      height: { ideal: 480 },
+                      facingMode: "user"
+                    }}
+                    className="img-fluid"
+                  />
+                  {offlineMode && (
+                    <div className="position-absolute top-0 end-0 m-2 p-2 bg-warning text-dark rounded shadow-sm">
+                      <strong>OFFLINE MODE</strong>
+                    </div>
+                  )}
+                </div>
+              </Col>
+            </Row>
+            
+            <Row className="justify-content-center mb-3">
+              <Col md={8} lg={6} className="d-flex justify-content-around">
                 <Button 
-                  variant="primary" 
-                  onClick={syncOfflineData}
-                  disabled={offlineData.length === 0}
+                  variant={isMonitoring ? "danger" : "success"} 
+                  onClick={toggleMonitoring}
                   size="lg"
                 >
-                  Sync Data ({offlineData.length})
+                  {isMonitoring ? "Stop Monitoring" : "Start Monitoring"}
                 </Button>
-              )}
-            </Col>
-          </Row>
-          
-          <Row className="justify-content-center">
-            <Col md={8} lg={6}>
-              <Alert variant={status.startsWith('Error') ? 'danger' : (offlineMode ? 'warning' : 'info')} className="mt-3 text-center">
-                <strong>Status:</strong> {status}
-              </Alert>
-              
-              <div className="mt-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                <h5 className="text-center">Event Log:</h5>
-                {alerts.length === 0 && <p className="text-center text-muted">No events yet.</p>}
-                {alerts.map((alert, index) => (
-                  <Alert key={index} variant="light" className="p-2 mb-2">
-                    <small><em>{alert.timestamp}</em>: {alert.message}</small>
-                  </Alert>
-                ))}
-              </div>
-            </Col>
-          </Row>
-        </Tab>
-        <Tab eventKey="events" title="Event History">
-          <Row className="justify-content-center mb-3">
-            <Col md={10} lg={8}>
-              <Button variant="secondary" onClick={fetchEvents} className="mb-3">Refresh Events</Button>
-              <Table striped bordered hover responsive size="sm">
-                <thead>
-                  <tr>
-                    <th>Timestamp</th>
-                    <th>Event Type</th>
-                    <th>Details</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {events.length === 0 && (
-                    <tr>
-                      <td colSpan="3" className="text-center">No events recorded for this session yet.</td>
-                    </tr>
-                  )}
-                  {events.map((event) => (
-                    <tr key={event._id}>
-                      <td>{new Date(event.timestamp).toLocaleString()}</td>
-                      <td>{event.event_type}</td>
-                      <td>
-                        {typeof event.details === 'object' ? (
-                          <ul className="list-unstyled mb-0">
-                            {event.details.eye_status && <li>Eye Status: {event.details.eye_status}</li>}
-                            {typeof event.details.looking_away !== 'undefined' && <li>Looking Away: {event.details.looking_away.toString()}</li>}
-                            {typeof event.details.face_count !== 'undefined' && <li>Face Count: {event.details.face_count}</li>}
-                            {!event.details.eye_status && !event.details.looking_away && !event.details.face_count && <span>{JSON.stringify(event.details)}</span>}
-                          </ul>
-                        ) : (
-                          event.details
-                        )}
-                      </td>
-                    </tr>
+                
+                {offlineMode && (
+                  <Button 
+                    variant="primary" 
+                    onClick={syncOfflineData}
+                    disabled={offlineData.length === 0}
+                    size="lg"
+                  >
+                    Sync Data ({offlineData.length})
+                  </Button>
+                )}
+              </Col>
+            </Row>
+            
+            <Row className="justify-content-center">
+              <Col md={8} lg={6}>
+                <Alert variant={status.startsWith('Error') ? 'danger' : (offlineMode ? 'warning' : 'info')} className="mt-3 text-center">
+                  <strong>Status:</strong> {status}
+                </Alert>
+                
+                <div className="mt-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                  <h5 className="text-center">Event Log:</h5>
+                  {alerts.length === 0 && <p className="text-center text-muted">No events yet.</p>}
+                  {alerts.map((alert, index) => (
+                    <Alert key={index} variant="light" className="p-2 mb-2">
+                      <small><em>{alert.timestamp}</em>: {alert.message}</small>
+                    </Alert>
                   ))}
-                </tbody>
-              </Table>
-            </Col>
-          </Row>
-        </Tab>
-      </Tabs>
-    </Container>
+                </div>
+              </Col>
+            </Row>
+          </Tab>
+          <Tab eventKey="events" title="Event History">
+            <Row className="justify-content-center mb-3">
+              <Col md={10} lg={8}>
+                <Button variant="secondary" onClick={fetchEvents} className="mb-3">Refresh Events</Button>
+                <Table striped bordered hover responsive size="sm">
+                  <thead>
+                    <tr>
+                      <th>Timestamp</th>
+                      <th>Event Type</th>
+                      <th>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {events.length === 0 && (
+                      <tr>
+                        <td colSpan="3" className="text-center">No events recorded for this session yet.</td>
+                      </tr>
+                    )}
+                    {events.map((event) => (
+                      <tr key={event._id}>
+                        <td>{new Date(event.timestamp).toLocaleString()}</td>
+                        <td>{event.event_type}</td>
+                        <td>
+                          {typeof event.details === 'object' ? (
+                            <ul className="list-unstyled mb-0">
+                              {event.details.eye_status && <li>Eye Status: {event.details.eye_status}</li>}
+                              {typeof event.details.looking_away !== 'undefined' && <li>Looking Away: {event.details.looking_away.toString()}</li>}
+                              {typeof event.details.face_count !== 'undefined' && <li>Face Count: {event.details.face_count}</li>}
+                              {!event.details.eye_status && !event.details.looking_away && !event.details.face_count && <span>{JSON.stringify(event.details)}</span>}
+                            </ul>
+                          ) : (
+                            event.details
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </Col>
+            </Row>
+          </Tab>
+        </Tabs>
+      </Container>
+    </>
   );
 }
 
