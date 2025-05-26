@@ -4,10 +4,10 @@
 
 **Overall Goal:** Implement Advanced Proctoring Features (Sound Detection and Screen Monitoring).
 
-**Current Phase:** **DEBUGGING LOGIN REGRESSION**
+**Current Phase:** Sound Detection - Implementing Audio Playback in Event History
 
 **Active Implementation Plans:**
-1.  `docs/implementation-plan/sound-detection.md` (Sound detection work is currently PAUSED, see Section 9 of this file for login debugging plan)
+1.  `docs/implementation-plan/sound-detection.md` (Currently working on Sub-Task 4.2 - Audio Playback, which is BLOCKED by `NotSupportedError` in browser when attempting to play fetched audio).
 2.  `docs/implementation-plan/screen-monitoring.md` (Not started)
 
 **Completed Tasks:**
@@ -20,25 +20,38 @@
 
 ## Lessons Learned (Chronological)
 
-*   **[2025-05-25] Docker Module Not Found:** If a Python package specified in `requirements.txt` consistently fails to import in a Docker container (`ModuleNotFoundError`) despite clean rebuilds (`--no-cache`, `down --rmi all -v`) and no errors during the `pip install -r requirements.txt` step in the Docker build log, try adding a separate, explicit `RUN pip install --no-cache-dir <package_name>` for that specific package in the Dockerfile. This can sometimes force the installation or provide more specific error messages. (Related to `Flask-JWT-Extended` issue during User Authentication task).
-*   **[2025-05-26] MongoDB Stability & Disk Space:** MongoDB can fail with `pymongo.errors.ServerSelectionTimeoutError` (often presenting as `Name or service not known` from the PyMongo client) if the `mongod` process within its Docker container is crashing or unhealthy. A critical reason for such crashes can be the Docker host running out of disk space. This leads to "No space left on device" errors within the MongoDB container's logs when it attempts to write to its journal or data files, causing WiredTiger to panic and the `mongod` process to abort. Regularly pruning unused Docker images (e.g., `docker image prune -a -f`) and, more importantly, Docker build cache (e.g., `docker builder prune -af`) is crucial to prevent this, as build cache can consume a very large amount of space. After clearing space, a full restart of Docker Compose services (`docker-compose down && docker-compose up -d --build`) is necessary.
-*   **[2025-05-26] Verify User Existence for Login Issues:** If encountering "Bad username or password" (401) errors after ruling out other issues like DB connectivity, directly query the user collection in MongoDB (e.g., `docker exec <mongo_container_name> mongosh <db_name> --eval "db.users.find({username: 'testuser'}).pretty()"`) to confirm the user exists. Users not being registered is a common cause. Also, be mindful of Docker volume persistence (`docker-compose down -v` deletes named volumes, potentially causing data loss if not intended).
-*   **[YYYY-MM-DD]**: Placeholder for future lessons.
+*   **[2025-05-24] Docker Module Not Found:** If a Python package specified in `requirements.txt` consistently fails to import in a Docker container (`ModuleNotFoundError`) despite clean rebuilds (`--no-cache`, `down --rmi all -v`) and no errors during the `pip install -r requirements.txt` step in the Docker build log, try adding a separate, explicit `RUN pip install --no-cache-dir <package_name>` for that specific package in the Dockerfile. This can sometimes force the installation or provide more specific error messages. (Related to `Flask-JWT-Extended` issue during User Authentication task).
+*   **[2025-05-24] AI Model Files:** AI/ML helper scripts often have dependencies on specific model files. Ensure these are included in the deployment package/Docker image (e.g., from `Proctoring-AI/models` directory).
+*   **[2025-05-24] Docker Credential Helper (macOS):** Issues like `docker-credential-desktop not found` can block Docker builds on macOS. Symlinking the executable (e.g., `/Applications/Docker.app/Contents/Resources/bin/docker-credential-desktop` to `/usr/local/bin/`) and restarting Docker Desktop can resolve this.
+*   **[2025-05-24] Docker Port Conflicts:** Default Nginx port (`80` inside container) mapped to host port `3000` can conflict if `3000` is in use. Changed to `3001:80`.
+*   **[2025-05-24] OpenCV in Headless Docker:** OpenCV GUI calls (e.g., `cv2.namedWindow`, `cv2.imshow`) in backend scripts will cause crashes in headless Docker environments. These must be removed or conditionally excluded.
+*   **[2025-05-24] External Script Signatures:** When sourcing scripts from external repositories, verify function signatures and availability. `get_eye_status` was implemented based on `track_eye` logic from the `Proctoring-AI` `eye_tracker.py`.
+*   **[2025-05-24] NumPy Dependency:** Ensure `numpy` is available and imported if numpy array operations are used.
+*   **[2025-05-25] Explicit Pip Installs in Dockerfile:** For critical packages, an explicit `RUN pip install <package>` in the Dockerfile can be more reliable than solely relying on `requirements.txt`.
+*   **[2025-05-25] Docker COPY Paths:** When Docker `COPY` commands fail, verify the file's existence, name (case-sensitive), and path within the Docker build context.
+*   **[2025-05-26] Librosa and FFmpeg:** `librosa.load()` may require `ffmpeg` for certain audio formats. Ensure `ffmpeg` is installed in the container.
+*   **[2025-05-26] Audio Library Warnings (Malformed Files):** Warnings from audio libraries (e.g., `libmpg123`) can indicate malformed or empty audio files.
+*   **[2025-05-26] MongoDB Stability & Disk Space:** MongoDB can crash (`pymongo.errors.ServerSelectionTimeoutError`, "No space left on device") if the Docker host runs out of disk space. Regularly prune Docker images and build cache.
+*   **[2025-05-26] Verify User Existence for Login Issues:** For 401 "Bad username or password" errors, confirm user existence in the database, especially after data modifications or volume changes.
+*   **[2025-05-26] MongoDB Collection Name Consistency:** Ensure collection names in queries match those in application code.
+*   **[2025-05-26] Default User Role on Registration:** If the frontend registration UI does not specify a role, the backend may default all new users to a 'student' role. This can prevent access to admin-only features if an 'admin' user is registered via this UI. Manual DB update or a dedicated admin creation mechanism is needed.
 
 ## Notes & Reminders
 
 *   For Sound Detection and Screen Monitoring, thorough research into browser APIs and user permission handling will be crucial.
 *   Decide which advanced feature to plan in detail first: Sound Detection or Screen Monitoring.
-*   **LOGIN REGRESSION: Currently blocked by login failure (CORS & 500 errors). This is the top priority.**
+*   **SOUND DETECTION - AUDIO PLAYBACK: Currently blocked by `NotSupportedError` when trying to play fetched WAV audio. Next step is to verify `Content-Type` response header via Network tab, then investigate frontend `encodeWAV` if header is correct.**
 
 ## Current Task
-- **Task:** [DEBUGGING] Fix Login Regression (CORS & 500 Errors)
-- **Implementation Plan:** [`docs/implementation-plan/sound-detection.md#9-debugging-login-regression-cors--500-errors`](docs/implementation-plan/sound-detection.md#9-debugging-login-regression-cors--500-errors)
+- **Task:** [SOUND DETECTION] Implement Audio Playback for Events in Event History (Sub-Task 4.2 of `sound-detection.md`)
+- **Status:** BLOCKED - Browser's `<audio>` element fails with `NotSupportedError: Failed to load because no supported source was found.`
+- **Implementation Plan:** [`docs/implementation-plan/sound-detection.md`](docs/implementation-plan/sound-detection.md)
 
 ## Detailed Steps (from Implementation Plan)
-*(To be filled by Executor as tasks from the login debugging plan are completed)*
-- Task 0: Pause Sound Detection Work - Complete
-- Task 1: Investigate Login Regression - In Progress
+*(To be filled by Executor as tasks from the sound detection plan are completed)*
+- Task 0-3: Completed
+- Task 4.0-4.1: Completed
+- Task 4.2: In Progress - BLOCKED
 
 ## Lessons Learned
 - [YYYY-MM-DD] Initial lesson entry.

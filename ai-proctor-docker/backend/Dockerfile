@@ -30,7 +30,7 @@ RUN pip install --no-cache-dir librosa
 RUN pip install --no-cache-dir webrtcvad-wheels
 
 # Explicitly copy the mp3 file, then copy the rest
-COPY file.mp3 /app/file.mp3
+# COPY file.mp3 /app/file.mp3 # Removed this line as file.mp3 was a test file and has been deleted
 COPY . .
 
 # Ensure model files used by face_detector.py, face_landmarks.py are copied

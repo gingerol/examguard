@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS, cross_origin
 import os
 import cv2
@@ -11,9 +11,25 @@ from pymongo import MongoClient
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity, get_jwt
 import base64 # Added import
+import io # Added import
+import librosa # Added import
 
 app = Flask(__name__)
 CORS(app)
+
+# Define the directory where audio chunks are stored
+AUDIO_CHUNK_DIR = '/app/audio_chunks' # Use absolute path directly
+# Attempt to create the directory on app startup
+try:
+    os.makedirs(AUDIO_CHUNK_DIR, exist_ok=True)
+    print(f"[INFO] Ensured audio chunk directory exists: {AUDIO_CHUNK_DIR}", flush=True)
+except OSError as e:
+    print(f"[ERROR] Could not create audio chunk directory {AUDIO_CHUNK_DIR}: {e}", flush=True)
+    # Depending on the severity, you might want to raise the error or handle it
+
+# Threshold for loud noise detection (in dBFS)
+# This can be tuned based on testing. Values closer to 0 are louder.
+LOUD_NOISE_DBFS_THRESHOLD = -20.0
 
 # Configure JWT
 app.config["JWT_SECRET_KEY"] = os.environ.get('FLASK_JWT_SECRET_KEY', 'super-secret-dev-key') # Change this in production!
@@ -210,87 +226,154 @@ def analyze_audio_chunk():
     if request.method == 'OPTIONS':
         return _build_cors_preflight_response()
 
-    # Existing POST logic
     current_user_identity = get_jwt_identity()
-    print(f"[INFO] /api/analyze-audio endpoint hit by user: {current_user_identity}", flush=True)
-    
-    # Ensure the request has a JSON body
-    if not request.is_json:
-        print("[ERROR] /api/analyze-audio: Missing JSON in request", flush=True)
-        return jsonify({"msg": "Missing JSON in request"}), 400
-
     data = request.get_json()
     audio_chunk_base64 = data.get('audio_chunk_base64')
-    sample_rate = data.get('sample_rate')
-    session_id = data.get('session_id', f'unknown_session_{datetime.datetime.utcnow().timestamp()}') # Added default for session_id
-    client_timestamp_utc = data.get('client_timestamp_utc', datetime.datetime.utcnow().isoformat()) # Added default for timestamp
+    sample_rate = data.get('sample_rate') # Sample rate from client
+    session_id = data.get('session_id', f'unknown_session_{datetime.datetime.utcnow().timestamp()}')
+    client_timestamp_utc_str = data.get('client_timestamp_utc')
 
-    if not audio_chunk_base64 or sample_rate is None: # sample_rate can be 0, so check for None
-        print("[ERROR] /api/analyze-audio: Missing audio_chunk_base64 or sample_rate in JSON payload", flush=True)
-        return jsonify({"msg": "Missing audio_chunk_base64 or sample_rate"}), 400
+    if not audio_chunk_base64:
+        return jsonify({"error": "No audio chunk provided"}), 400
 
-    # Minimal processing for now: Log reception and key data points
-    print(f"[AUDIO_CHUNK_RECEIVED] Session: {session_id}, Sample Rate: {sample_rate}, Timestamp (Client UTC): {client_timestamp_utc}, Chunk Base64 Length: {len(audio_chunk_base64)}", flush=True)
-    
-    # Decode Base64 audio and save to file for verification
     try:
         audio_bytes = base64.b64decode(audio_chunk_base64)
         
-        # Create a directory for audio chunks if it doesn't exist
-        audio_chunks_dir = "/app/audio_chunks"
-        os.makedirs(audio_chunks_dir, exist_ok=True)
-        
-        # Sanitize client_timestamp_utc for filename (replace colons, etc.)
-        safe_timestamp = client_timestamp_utc.replace(":", "-").replace(".", "-")
+        # --- Save the audio chunk as a WAV file (for debugging/auditing) ---
+        # Sanitize client_timestamp_utc_str for filename
+        safe_timestamp = "".join(c if c.isalnum() or c in ('.', '_') else '_' for c in client_timestamp_utc_str)
         filename = f"{session_id}_{safe_timestamp}.wav"
-        filepath = os.path.join(audio_chunks_dir, filename)
+        filepath = os.path.join(AUDIO_CHUNK_DIR, filename)
         
-        with open(filepath, 'wb') as f_audio:
-            f_audio.write(audio_bytes)
-        print(f"[AUDIO_CHUNK_SAVED] Audio chunk saved to {filepath}", flush=True)
+        with open(filepath, 'wb') as f:
+            f.write(audio_bytes) # Assuming WAV header is included by client
+        print(f"[AUDIO_CHUNK_SAVED] Saved audio chunk to: {filepath}", flush=True)
 
-        # Log event to MongoDB
-        try:
-            # Calculate approximate duration. Assuming 16-bit mono audio (2 bytes per sample)
-            # This might not be perfectly accurate if WAV header is different, but good for an estimate
-            # Or, more simply, we know the frontend aims for 5 seconds.
-            approx_duration = 5.0 # Based on TARGET_AUDIO_CHUNK_DURATION_SECONDS in frontend
+        # --- Log event to MongoDB for audio chunk saved ---
+        # Approximate duration: length of audio_bytes / (sample_rate * bytes_per_sample * num_channels)
+        # Assuming 16-bit mono (2 bytes per sample, 1 channel) for WAV from client.
+        # This is a rough estimate. Client should ideally send duration.
+        # Librosa's duration calculation later is more accurate if file is parsable.
+        bytes_per_sample = 2 # For 16-bit PCM
+        num_channels = 1 # Assuming mono
+        approx_duration_seconds = len(audio_bytes) / (sample_rate * bytes_per_sample * num_channels) if sample_rate else None
 
-            event_data = {
-                "timestamp": datetime.datetime.utcnow(), # Server-side timestamp
+        event_data_saved = {
+            "timestamp": datetime.datetime.utcnow(),
+            "client_timestamp_utc": client_timestamp_utc_str,
+            "session_id": session_id,
+            "username": current_user_identity,
+            "event_type": "audio_chunk_saved",
+            "details": {
+                "filepath": filepath,
+                "sample_rate_client": sample_rate,
+                "size_bytes": len(audio_bytes),
+                "approx_duration_seconds": approx_duration_seconds
+            }
+        }
+        events_collection.insert_one(event_data_saved)
+        print(f"[DB_EVENT] Logged 'audio_chunk_saved' event for {filepath}", flush=True)
+
+        # --- Perform RMS analysis using librosa ---
+        # Load audio data using librosa. `sr=None` preserves original sample rate.
+        # Using io.BytesIO to load from memory
+        y, sr_librosa = librosa.load(io.BytesIO(audio_bytes), sr=None)
+        
+        # Calculate RMS energy
+        rms = librosa.feature.rms(y=y)[0] # Get the first channel if multi-channel (though expect mono)
+        
+        # Convert RMS to dBFS
+        # librosa.amplitude_to_db uses max_possible_amplitude as reference. For float PCM, it's 1.0.
+        # However, audio from browsers/getUserMedia is typically float in range [-1, 1].
+        # Using a power reference of 1.0 (max power for normalized signal)
+        dbfs = librosa.amplitude_to_db(rms, ref=1.0) # Using ref=1.0 for normalized audio
+                                                    # For raw PCM, ref=np.max would normalize to the specific file's max
+                                                    # but for dBFS, typically relate to max possible signal value.
+
+        max_dbfs = np.max(dbfs)
+        avg_dbfs = np.mean(dbfs) # Average dBFS over the frames in the chunk
+
+        print(f"[AUDIO_ANALYSIS_RMS] Chunk Max dBFS: {max_dbfs:.2f}, Avg dBFS: {avg_dbfs:.2f}, Librosa SR: {sr_librosa}, Client SR: {sample_rate}", flush=True)
+
+        # --- Loud Noise Detection ---
+        if max_dbfs > LOUD_NOISE_DBFS_THRESHOLD:
+            print(f"[LOUD_NOISE_EVENT] Loud noise detected! Max dBFS {max_dbfs:.2f} > Threshold {LOUD_NOISE_DBFS_THRESHOLD:.2f}", flush=True)
+            loud_noise_event_data = {
+                "timestamp": datetime.datetime.utcnow(),
+                "client_timestamp_utc": client_timestamp_utc_str, # Include client timestamp for context
                 "session_id": session_id,
                 "username": current_user_identity,
-                "event_type": "audio_chunk_saved",
+                "event_type": "loud_noise_detected",
                 "details": {
-                    "client_timestamp_utc": client_timestamp_utc,
-                    "sample_rate": sample_rate,
-                    "original_chunk_base64_length": len(audio_chunk_base64),
-                    "saved_filepath": filepath,
-                    "approx_chunk_duration_seconds": approx_duration
+                    "peak_rms_dbfs": float(max_dbfs), # Ensure it's a Python float for MongoDB
+                    "average_rms_dbfs": float(avg_dbfs), # Also log average for context
+                    "rms_threshold_dbfs_used": LOUD_NOISE_DBFS_THRESHOLD,
+                    "detected_sample_rate": sr_librosa,
+                    "original_filepath": filepath # Reference to the saved chunk
                 }
             }
-            events_collection.insert_one(event_data)
-            print(f"[DB_EVENT] Logged 'audio_chunk_saved' event for session {session_id}", flush=True)
-        except Exception as db_e:
-            print(f"[ERROR] Failed to log 'audio_chunk_saved' event to MongoDB: {db_e}", flush=True)
+            events_collection.insert_one(loud_noise_event_data)
+            print(f"[DB_EVENT] Logged 'loud_noise_detected' event.", flush=True)
+            # Potentially return something specific in response if needed
+            # For now, the generic success response is fine.
+
+        return jsonify({"message": "Audio chunk received and processed for RMS (and potential loud noise).", 
+                        "max_dbfs": f"{max_dbfs:.2f}", 
+                        "avg_dbfs": f"{avg_dbfs:.2f}"}), 200
 
     except Exception as e:
-        print(f"[ERROR] Failed to decode or save audio chunk: {e}", flush=True)
-        # Optionally, you could return an error response to the client here
-        # For now, we'll let it proceed to the main success response even if file saving fails
-        pass
+        print(f"[ERROR] Error processing audio chunk: {e}", flush=True)
+        # Log error event to MongoDB
+        error_event_data = {
+            "timestamp": datetime.datetime.utcnow(),
+            "client_timestamp_utc": client_timestamp_utc_str,
+            "session_id": session_id,
+            "username": current_user_identity, # May not be available if JWT failed earlier, but try
+            "event_type": "audio_processing_error",
+            "details": {
+                "error_message": str(e),
+                "stage": "rms_analysis_or_loud_noise_detection"
+            }
+        }
+        try: # Try to log, but don't let logging failure mask original error to client
+            events_collection.insert_one(error_event_data)
+            print(f"[DB_EVENT] Logged 'audio_processing_error' event.", flush=True)
+        except Exception as db_e:
+            print(f"[ERROR] Failed to log audio_processing_error to DB: {db_e}", flush=True)
+            
+        return jsonify({"error": "Failed to process audio chunk", "details": str(e)}), 500
 
-    # TODO: Implement actual audio analysis logic here
-    # - Process WAV bytes (e.g., with librosa, webrtcvad, etc.)
+@app.route('/api/audio_files/<path:filename>', methods=['GET'])
+@jwt_required()
+def get_audio_file(filename):
+    claims = get_jwt()
+    user_role = claims.get("role", "student")
 
-    return jsonify({"message": "Audio chunk received and logged by backend (actual analysis pending).", "session_id": session_id}), 200
+    if user_role != 'admin':
+        print(f"[AUTH_FAILURE] User {get_jwt_identity()} with role '{user_role}' attempted to access protected audio file: {filename}", flush=True)
+        return jsonify({"msg": "Administration rights required to access audio files."}), 403
+
+    # Basic security check to prevent directory traversal
+    if '..' in filename or filename.startswith('/'):
+        print(f"[SECURITY_WARNING] Invalid filename requested by admin {get_jwt_identity()}: {filename}", flush=True)
+        return jsonify({"msg": "Invalid filename."}), 400
+    
+    print(f"[AUDIO_FILE_ACCESS] Admin {get_jwt_identity()} requesting audio file: {filename} from {AUDIO_CHUNK_DIR}", flush=True)
+    try:
+        return send_from_directory(AUDIO_CHUNK_DIR, filename, as_attachment=False, mimetype='audio/wav') # Explicitly set mimetype
+    except FileNotFoundError:
+        print(f"[AUDIO_FILE_ERROR] File not found: {filename} in {AUDIO_CHUNK_DIR}", flush=True)
+        return jsonify({"msg": "Audio file not found."}), 404
+    except Exception as e:
+        print(f"[AUDIO_FILE_ERROR] Error serving file {filename}: {str(e)}", flush=True)
+        return jsonify({"msg": "Error serving audio file."}), 500
 
 def _build_cors_preflight_response():
     response = jsonify({'message': 'CORS preflight successful'})
-    # These headers are often managed by Flask-CORS with @cross_origin, 
+    # These headers are often managed by Flask-Cors with @cross_origin, 
     # but explicitly setting them here for an OPTIONS handler can sometimes help.
     # However, with @cross_origin, this explicit handler might not even be strictly necessary
-    # if Flask-CORS correctly handles the OPTIONS method added to @app.route.
+    # if Flask-Cors correctly handles the OPTIONS method added to @app.route.
     # For now, let's keep it simple and rely on @cross_origin to add the headers.
     # If issues persist, we can add them manually:
     # response.headers.add("Access-Control-Allow-Origin", "http://localhost:3001")

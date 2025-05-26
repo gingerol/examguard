@@ -4,6 +4,8 @@ import axios from 'axios';
 import { Container, Row, Col, Button, Alert, Tab, Tabs, Table, Form, Nav, Navbar } from 'react-bootstrap';
 // Ensure 'bootstrap/dist/css/bootstrap.min.css' is imported in index.js or here
 
+/* eslint-disable jsx-a11y/media-has-caption */
+
 function App() {
   const webcamRef = useRef(null);
   const [isMonitoring, setIsMonitoring] = useState(false);
@@ -54,7 +56,7 @@ function App() {
 
   // Setup Axios interceptor to include JWT token in requests
   useEffect(() => {
-    const interceptor = axios.interceptors.request.use(
+    const requestInterceptor = axios.interceptors.request.use(
       config => {
         const token = localStorage.getItem('proctoring_token');
         if (token) {
@@ -64,11 +66,36 @@ function App() {
       },
       error => Promise.reject(error)
     );
-    // Clean up the interceptor when the component unmounts
+
+    // Setup Axios response interceptor to handle 401 errors (token expiry)
+    const responseInterceptor = axios.interceptors.response.use(
+      response => response, // Pass through successful responses
+      error => {
+        if (error.response && error.response.status === 401) {
+          // Check if the original request was NOT to the login endpoint
+          // to prevent a loop if the login itself fails with 401
+          if (error.config.url !== 'http://localhost:5000/api/auth/login') {
+            console.warn('[AxiosAuth] Received 401 Unauthorized for URL:', error.config.url, 'Logging out.');
+            // Use a more specific message for token expiry
+            setAuthMessage({ type: 'warning', text: 'Your session has expired. Please log in again.' });
+            handleLogout(); // This will clear currentUser and localStorage
+          } else {
+            // If it was the login endpoint, don't force logout, let login fail normally
+            console.log('[AxiosAuth] 401 from login endpoint, not forcing logout.');
+          }
+        }
+        return Promise.reject(error); // Important to reject the error so individual .catch() blocks can still handle it
+      }
+    );
+
+    // Clean up the interceptors when the component unmounts
     return () => {
-      axios.interceptors.request.eject(interceptor);
+      axios.interceptors.request.eject(requestInterceptor);
+      axios.interceptors.response.eject(responseInterceptor);
     };
-  }, []); // Empty dependency array, so it runs once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // currentUser removed from deps to prevent re-running interceptor setup on logout/login
+           // handleLogout is memoized by React if it were a useCallback, but here it's fine.
 
   const base64ToBlob = (base64, mimeType) => {
     const byteCharacters = atob(base64);
@@ -533,9 +560,11 @@ function App() {
     localStorage.removeItem('proctoring_token');
     localStorage.removeItem('proctoring_user');
     // setShowLogin(true); // This is implicitly handled by !currentUser condition
-    setAuthUsername('');
-    setAuthPassword('');
-    setAuthMessage({ type: '', text: '' });
+    // Do not clear authUsername and authPassword here, user might want to retry login
+    // setAuthUsername(''); 
+    // setAuthPassword('');
+    // setAuthMessage({ type: '', text: '' }); // Message is set by interceptor or login/register handlers
+    console.log('[Auth] User logged out.');
   };
 
   // Render Login/Register forms if not authenticated
@@ -734,9 +763,69 @@ function App() {
                           <td>
                             {typeof event.details === 'object' && event.details !== null ? (
                               <ul style={{ paddingLeft: '15px', marginBottom: '0' }}>
-                                {Object.entries(event.details).map(([key, value]) => (
-                                  <li key={key}>{`${key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}: ${value === true ? 'Yes' : value === false ? 'No' : value}`}</li>
-                                ))}
+                                {Object.entries(event.details).map(([key, value]) => {
+                                  let displayValue = value;
+                                  if (key === 'peak_rms_dbfs' || key === 'average_rms_dbfs') {
+                                    displayValue = typeof value === 'number' ? value.toFixed(2) : value;
+                                  } else if (key === 'original_filepath' && typeof value === 'string') {
+                                    displayValue = value.substring(value.lastIndexOf('/') + 1);
+                                  } else if (value === true) {
+                                    displayValue = 'Yes';
+                                  } else if (value === false) {
+                                    displayValue = 'No';
+                                  }
+                                  const displayKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+                                  return <li key={key}>{`${displayKey}: ${displayValue}`}</li>;
+                                })}
+                                {(event.event_type === 'loud_noise_detected' || event.event_type === 'audio_chunk_saved') && 
+                                 event.details && (event.details.original_filepath || event.details.filepath) && (
+                                  <li>
+                                    <Button 
+                                      variant="info" 
+                                      size="sm"
+                                      className='mt-1'
+                                      onClick={async () => {
+                                        const filename = event.details.original_filepath 
+                                                       ? event.details.original_filepath.substring(event.details.original_filepath.lastIndexOf('/') + 1)
+                                                       : event.details.filepath.substring(event.details.filepath.lastIndexOf('/') + 1);
+                                        const token = localStorage.getItem('proctoring_token');
+                                        if (!token) {
+                                          console.error('No access token found for playing audio. Key used: proctoring_token');
+                                          addAlert('Error: Not authorized to play audio. Please log in again.');
+                                          return;
+                                        }
+                                        try {
+                                          console.log(`[AudioPlayback] Attempting to play: ${filename}`);
+                                          const response = await fetch(`/api/audio_files/${filename}`, {
+                                            headers: {
+                                              'Authorization': `Bearer ${token}`
+                                            }
+                                          });
+                                          if (!response.ok) {
+                                            const errorData = await response.json();
+                                            throw new Error(errorData.msg || `Failed to fetch audio: ${response.status}`);
+                                          }
+                                          const originalBlob = await response.blob();
+                                          // Ensure the blob has the correct MIME type for WAV audio
+                                          const audioBlob = new Blob([originalBlob], { type: 'audio/wav' });
+                                          const audioUrl = URL.createObjectURL(audioBlob);
+                                          const audio = new Audio(audioUrl);
+                                          audio.play()
+                                            .then(() => console.log(`[AudioPlayback] Playing ${filename}`))
+                                            .catch(err => {
+                                                console.error('[AudioPlayback] Error playing audio:', err);
+                                                addAlert(`Error playing audio ${filename}: ${err.message}`);
+                                            });
+                                        } catch (error) {
+                                          console.error('[AudioPlayback] Error fetching or playing audio:', error);
+                                          addAlert(`Failed to play audio ${filename}: ${error.message}`);
+                                        }
+                                      }}
+                                    >
+                                      Play Audio
+                                    </Button>
+                                  </li>
+                                )}
                               </ul>
                             ) : event.details}
                           </td>
