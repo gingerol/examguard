@@ -10,10 +10,23 @@ function App() {
   const [status, setStatus] = useState('Ready');
   const [alerts, setAlerts] = useState([]);
   const [offlineMode, setOfflineMode] = useState(false);
+  const [isTogglingVideo, setIsTogglingVideo] = useState(false); // For video button
   const [offlineData, setOfflineData] = useState([]);
   const [sessionId, setSessionId] = useState(`session_${new Date().getTime()}`);
   const [events, setEvents] = useState([]);
   const [activeTab, setActiveTab] = useState('monitor');
+
+  // Audio state
+  const [isAudioMonitoring, setIsAudioMonitoring] = useState(false);
+  const [audioStatusMessage, setAudioStatusMessage] = useState({ type: 'info', text: 'Audio monitoring ready.' });
+  const [isTogglingAudio, setIsTogglingAudio] = useState(false); // For disabling button during state changes
+  const audioStreamRef = useRef(null); // To store MediaStream
+  const audioContextRef = useRef(null); // To store AudioContext
+  const scriptProcessorNodeRef = useRef(null); // To store ScriptProcessorNode
+  const audioSourceNodeRef = useRef(null); // To store MediaStreamAudioSourceNode
+  const audioBufferRef = useRef([]); // To store Float32Array audio chunks
+  const accumulatedAudioLengthRef = useRef(0); // To store total accumulated samples
+  const TARGET_AUDIO_CHUNK_DURATION_SECONDS = 5; // Target duration for each chunk
 
   // Auth state
   const [currentUser, setCurrentUser] = useState(null); // Will store { token, username, role }
@@ -126,15 +139,283 @@ function App() {
   };
   
   const toggleMonitoring = () => {
-    setIsMonitoring(!isMonitoring);
-    if (!isMonitoring) { // About to start
-      setStatus('Starting monitoring...');
-      setAlerts([]); // Clear previous alerts
-    } else { // About to stop
-      setStatus('Monitoring stopped.');
+    if (isTogglingVideo) return;
+    setIsTogglingVideo(true);
+
+    setIsMonitoring(prevIsMonitoring => {
+      const newIsMonitoring = !prevIsMonitoring;
+      if (newIsMonitoring) { // About to start
+        setStatus('Starting monitoring...');
+        setAlerts([]); // Clear previous alerts
+      } else { // About to stop
+        setStatus('Monitoring stopped.');
+      }
+      setIsTogglingVideo(false); // Set back regardless of outcome for simplicity here
+      return newIsMonitoring;
+    });
+  };
+
+  const toggleAudioMonitoring = async () => {
+    if (isTogglingAudio) return; // Prevent rapid clicks
+    setIsTogglingAudio(true);
+
+    if (!isAudioMonitoring) { // About to start audio monitoring
+      setAudioStatusMessage({ type: 'info', text: 'Starting audio monitoring...' });
+      audioBufferRef.current = []; // Clear any previous buffers
+      accumulatedAudioLengthRef.current = 0; // Reset accumulated length
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioStreamRef.current = stream;
+        
+        const context = new (window.AudioContext || window.webkitAudioContext)();
+        audioContextRef.current = context;
+
+        const source = context.createMediaStreamSource(stream);
+        audioSourceNodeRef.current = source;
+
+        // Buffer size, input channels, output channels
+        const bufferSize = 4096; 
+        const scriptNode = context.createScriptProcessor(bufferSize, 1, 1); // Mono input, mono output
+        scriptProcessorNodeRef.current = scriptNode;
+
+        scriptNode.onaudioprocess = (audioProcessingEvent) => {
+          try {
+            const inputBuffer = audioProcessingEvent.inputBuffer;
+            const inputData = inputBuffer.getChannelData(0); // Assuming mono audio
+
+            // It's crucial to copy the data, as the underlying buffer is reused by the browser
+            const inputDataCopy = new Float32Array(inputData);
+            
+            if (!audioBufferRef.current) {
+              console.error('[AudioError] audioBufferRef.current is null or undefined in onaudioprocess!');
+              audioBufferRef.current = []; // Attempt to recover
+            }
+            audioBufferRef.current.push(inputDataCopy);
+            accumulatedAudioLengthRef.current += inputDataCopy.length;
+
+            // Defensive check for audioContextRef and sampleRate
+            if (!audioContextRef.current || !audioContextRef.current.sampleRate) {
+              console.error('[AudioError] AudioContext or sampleRate is invalid in onaudioprocess.');
+              // Consider stopping or attempting to recover audio context if possible, or just return
+              return; 
+            }
+            const currentSampleRate = audioContextRef.current.sampleRate;
+            const samplesPerChunk = TARGET_AUDIO_CHUNK_DURATION_SECONDS * currentSampleRate;
+
+            console.log(`[AudioDebug] Accumulated: ${accumulatedAudioLengthRef.current}, Target: ${samplesPerChunk}, SampleRate: ${currentSampleRate}, BufferSize: ${inputDataCopy.length}`);
+
+            if (accumulatedAudioLengthRef.current >= samplesPerChunk) {
+              console.log(`[AudioChunk] Accumulated ${accumulatedAudioLengthRef.current} samples at ${currentSampleRate}Hz, reaching target of ${samplesPerChunk}. Processing chunk.`);
+              
+              // Make a copy of the buffers to pass, to avoid modification issues if processAndSendAudioChunk is slow or async
+              const buffersToProcess = [...audioBufferRef.current];
+              audioBufferRef.current = []; // Reset for the next chunk immediately
+              accumulatedAudioLengthRef.current = 0; // Reset accumulated length immediately
+
+              processAndSendAudioChunk(buffersToProcess, currentSampleRate);
+            }
+          } catch (e) {
+            console.error('[AudioError] Error in onaudioprocess:', e);
+            // Optionally, try to stop audio monitoring gracefully here to prevent repeated errors
+            // This might involve calling parts of the cleanup logic from toggleAudioMonitoring
+            // For now, just log the error.
+          }
+        };
+
+        source.connect(scriptNode);
+        scriptNode.connect(context.destination); // Necessary to make onaudioprocess fire.
+
+        setIsAudioMonitoring(true);
+        setAudioStatusMessage({ type: 'success', text: 'Audio monitoring active.' });
+        console.log('[AudioProto] Audio monitoring started successfully.');
+
+      } catch (err) {
+        console.error('[AudioProto] Error accessing microphone:', err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setAudioStatusMessage({ type: 'error', text: 'Microphone access denied by user. Please enable microphone permissions in your browser settings.' });
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          setAudioStatusMessage({ type: 'error', text: 'No microphone found. Please connect a microphone and try again.' });
+        } else {
+          setAudioStatusMessage({ type: 'error', text: `Error accessing microphone: ${err.message}` });
+        }
+        // Ensure states are reset if setup fails
+        setIsAudioMonitoring(false); 
+        audioStreamRef.current = null;
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+          audioContextRef.current.close().catch(e => console.error("Error closing audio context on fail:", e));
+        }
+        audioContextRef.current = null;
+        scriptProcessorNodeRef.current = null; 
+        audioSourceNodeRef.current = null;
+
+      } finally {
+        setIsTogglingAudio(false);
+      }
+    } else { // About to stop audio monitoring
+      setAudioStatusMessage({ type: 'info', text: 'Stopping audio monitoring...' });
+      if (scriptProcessorNodeRef.current && audioSourceNodeRef.current) {
+        audioSourceNodeRef.current.disconnect(scriptProcessorNodeRef.current);
+        scriptProcessorNodeRef.current.disconnect(); // Disconnect from context.destination
+        scriptProcessorNodeRef.current.onaudioprocess = null; // Remove the handler
+        scriptProcessorNodeRef.current = null;
+      }
+      if (audioSourceNodeRef.current) {
+        audioSourceNodeRef.current.disconnect();
+        audioSourceNodeRef.current = null;
+      }
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(track => track.stop());
+        audioStreamRef.current = null;
+      }
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(e => console.error("Error closing audio context:", e));
+        audioContextRef.current = null;
+      }
+      
+      setIsAudioMonitoring(false);
+      // addAlert('Audio monitoring stopped.'); // Replaced by audioStatusMessage
+      setAudioStatusMessage({ type: 'info', text: 'Audio monitoring stopped.' });
+      console.log('[AudioProto] Audio monitoring stopped.');
+      audioBufferRef.current = []; // Clear buffers
+      accumulatedAudioLengthRef.current = 0; // Reset length
+      setIsTogglingAudio(false);
     }
   };
-  
+
+  // Helper function to convert ArrayBuffer to Base64 string
+  const arrayBufferToBase64 = (buffer) => {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+  };
+
+  // WAV Encoding Function
+  const encodeWAV = (samples, sampleRate) => {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    // Helper function to write strings to DataView
+    const writeString = (view, offset, string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+
+    // RIFF identifier
+    writeString(view, 0, 'RIFF');
+    // RIFF chunk length
+    view.setUint32(4, 36 + samples.length * 2, true);
+    // RIFF type
+    writeString(view, 8, 'WAVE');
+    // format chunk identifier
+    writeString(view, 12, 'fmt ');
+    // format chunk length
+    view.setUint32(16, 16, true);
+    // sample format (raw)
+    view.setUint16(20, 1, true);
+    // channel count
+    const numChannels = 1;
+    view.setUint16(22, numChannels, true);
+    // sample rate
+    view.setUint32(24, sampleRate, true);
+    // byte rate (sample rate * block align)
+    view.setUint32(28, sampleRate * numChannels * 2, true); // 2 bytes per sample (16-bit)
+    // block align (channel count * bytes per sample)
+    view.setUint16(32, numChannels * 2, true); // 2 bytes per sample (16-bit)
+    // bits per sample
+    view.setUint16(34, 16, true);
+    // data chunk identifier
+    writeString(view, 36, 'data');
+    // data chunk length
+    view.setUint32(40, samples.length * 2, true);
+
+    // Write the PCM samples (16-bit)
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, samples[i])); // Clamp to -1 to 1
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    return buffer; // Return ArrayBuffer
+  };
+
+  const processAndSendAudioChunk = (audioBuffers, sampleRate) => {
+    try {
+      console.log('[AudioChunk] processAndSendAudioChunk called.');
+      
+      if (!audioBuffers || !Array.isArray(audioBuffers)) {
+        console.error('[AudioError] audioBuffers is invalid in processAndSendAudioChunk.', audioBuffers);
+        return;
+      }
+      if (audioBuffers.length === 0) {
+        console.warn('[AudioChunk] processAndSendAudioChunk called with empty audioBuffers. Skipping.');
+        return;
+      }
+
+      // 1. Concatenate buffers
+      let totalLength = 0;
+      audioBuffers.forEach(buffer => {
+        totalLength += buffer.length;
+      });
+      const concatenatedBuffer = new Float32Array(totalLength);
+      let offset = 0;
+      audioBuffers.forEach(buffer => {
+        concatenatedBuffer.set(buffer, offset);
+        offset += buffer.length;
+      });
+      console.log(`[AudioChunk] Concatenated buffer length: ${concatenatedBuffer.length}, Sample rate: ${sampleRate}`);
+
+      // 2. Convert to WAV (encodeWAV function)
+      const wavBuffer = encodeWAV(concatenatedBuffer, sampleRate);
+      console.log(`[AudioChunk] WAV buffer created, length: ${wavBuffer.byteLength}`);
+
+      // 3. Base64 Encode
+      const base64WAV = arrayBufferToBase64(wavBuffer);
+      console.log(`[AudioChunk] Base64 WAV data (first 100 chars): ${base64WAV.substring(0, 100)}`);
+      console.log(`[AudioChunk] Base64 WAV data length: ${base64WAV.length}`);
+
+      // 4. Send to backend (Sub-Task 2.3)
+      const clientTimestampUTC = new Date().toISOString();
+      const audioDataPayload = {
+        audio_chunk_base64: base64WAV,
+        sample_rate: sampleRate,
+        session_id: sessionId, // Assumes sessionId is available in this scope
+        client_timestamp_utc: clientTimestampUTC
+      };
+
+      axios.post('http://localhost:5000/api/analyze-audio', audioDataPayload)
+        .then(response => {
+          console.log('[AudioChunk] Successfully sent audio chunk to backend:', response.data);
+          setAudioStatusMessage({ 
+            type: 'success', 
+            text: `Audio chunk (${(totalLength / sampleRate).toFixed(1)}s) sent. Server: ${response.data.message || 'Processed'}.` 
+          });
+        })
+        .catch(error => {
+          console.error('[AudioChunk] Error sending audio chunk to backend:', error);
+          let errorMsg = 'Failed to send audio chunk.';
+          if (error.response) {
+            errorMsg = `Server error: ${error.response.data.message || error.response.statusText}`;
+          } else if (error.request) {
+            errorMsg = 'No response from server. Check connection.';
+          }
+          setAudioStatusMessage({ 
+            type: 'error', 
+            text: `Error sending audio: ${errorMsg}` 
+          });
+        });
+    } catch (e) {
+      console.error('[AudioError] Error in processAndSendAudioChunk:', e);
+      setAudioStatusMessage({ 
+        type: 'error', 
+        text: `Critical error processing audio chunk: ${e.message}` 
+      });
+    }
+  };
+
   const syncOfflineData = async () => {
     if (offlineData.length === 0) {
       addAlert('No offline data to sync.');
@@ -357,15 +638,39 @@ function App() {
             </Row>
             
             <Row className="justify-content-center mb-3">
-              <Col md={8} lg={6} className="d-flex justify-content-around">
-                <Button 
-                  variant={isMonitoring ? "danger" : "success"} 
-                  onClick={toggleMonitoring}
-                  size="lg"
-                >
-                  {isMonitoring ? "Stop Monitoring" : "Start Monitoring"}
-                </Button>
-                
+              <Col md={8} lg={6} className="d-flex flex-column align-items-center">
+                {currentUser && currentUser.role === 'student' && (
+                  <>
+                    <Button onClick={toggleMonitoring} variant={isMonitoring ? "danger" : "success"} className="me-2" disabled={isTogglingAudio || isTogglingVideo}>
+                      {isMonitoring ? 'Stop Video Monitoring' : 'Start Video Monitoring'}
+                    </Button>
+                    <Button onClick={toggleAudioMonitoring} variant={isAudioMonitoring ? "danger" : "success"} disabled={isTogglingAudio}>
+                      {isAudioMonitoring ? 'Stop Sound Monitoring' : 'Start Sound Monitoring'}
+                    </Button>
+                  </>
+                )}
+                {currentUser && currentUser.role === 'admin' && (
+                  <>
+                    <Button 
+                      variant={isMonitoring ? "danger" : "success"} 
+                      onClick={toggleMonitoring}
+                      size="lg"
+                      className="mb-2 w-100"
+                    >
+                      {isMonitoring ? "Stop Face Monitoring" : "Start Face Monitoring"}
+                    </Button>
+                    
+                    <Button 
+                      variant={isAudioMonitoring ? "warning" : "info"} 
+                      onClick={toggleAudioMonitoring}
+                      size="lg"
+                      className="mb-2 w-100"
+                    >
+                      {isAudioMonitoring ? 'Stop Sound Monitoring' : 'Start Sound Monitoring'}
+                    </Button>
+                  </>
+                )}
+
                 {offlineMode && (
                   <Button 
                     variant="primary" 
@@ -384,6 +689,11 @@ function App() {
                 <Alert variant={status.startsWith('Error') ? 'danger' : (offlineMode ? 'warning' : 'info')} className="mt-3 text-center">
                   <strong>Status:</strong> {status}
                 </Alert>
+                {audioStatusMessage && audioStatusMessage.text && 
+                  <Alert variant={audioStatusMessage.type} className="mt-2 text-center">
+                    <strong>Audio Status:</strong> {audioStatusMessage.text}
+                  </Alert>
+                }
                 
                 <div className="mt-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                   <h5 className="text-center">Event Log:</h5>
