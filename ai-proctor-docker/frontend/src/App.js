@@ -14,7 +14,7 @@ function App() {
   const [offlineMode, setOfflineMode] = useState(false);
   const [isTogglingVideo, setIsTogglingVideo] = useState(false); // For video button
   const [offlineData, setOfflineData] = useState([]);
-  const [sessionId, setSessionId] = useState(`session_${new Date().getTime()}`);
+  const [sessionId, /* eslint-disable-next-line no-unused-vars */ setSessionId] = useState(`session_${new Date().getTime()}`);
   const [events, setEvents] = useState([]);
   const [activeTab, setActiveTab] = useState('monitor');
 
@@ -32,7 +32,7 @@ function App() {
 
   // Auth state
   const [currentUser, setCurrentUser] = useState(null); // Will store { token, username, role }
-  const [showLogin, setShowLogin] = useState(true); // Show login form by default if not authenticated
+  // const [showLogin, setShowLogin] = useState(true); // Commented out as per ESLint, visibility driven by currentUser
   const [showRegister, setShowRegister] = useState(false); // Controls visibility of registration form
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -801,13 +801,43 @@ function App() {
                                               'Authorization': `Bearer ${token}`
                                             }
                                           });
+
+                                          console.log('[AudioPlayback] Response status:', response.status);
+                                          console.log('[AudioPlayback] Response headers:');
+                                          response.headers.forEach((value, name) => {
+                                            console.log(`  ${name}: ${value}`);
+                                          });
+
                                           if (!response.ok) {
-                                            const errorData = await response.json();
-                                            throw new Error(errorData.msg || `Failed to fetch audio: ${response.status}`);
+                                            let errorText = `Failed to fetch audio: ${response.status}`;
+                                            try {
+                                                const errorData = await response.json(); // Try to parse as JSON first
+                                                errorText = errorData.msg || JSON.stringify(errorData);
+                                            } catch (e) {
+                                                // If not JSON, try to get text
+                                                errorText = await response.text();
+                                            }
+                                            console.error('[AudioPlayback] Fetch error response text:', errorText);
+                                            throw new Error(`Server error: ${errorText}`);
                                           }
                                           const originalBlob = await response.blob();
+                                          console.log('[AudioPlayback] Original blob size:', originalBlob.size);
+                                          console.log('[AudioPlayback] Original blob type:', originalBlob.type);
+                                          
                                           // Ensure the blob has the correct MIME type for WAV audio
                                           const audioBlob = new Blob([originalBlob], { type: 'audio/wav' });
+                                          console.log('[AudioPlayback] New audioBlob size:', audioBlob.size);
+                                          console.log('[AudioPlayback] New audioBlob type:', audioBlob.type);
+
+                                          if (originalBlob.size === 0) {
+                                            throw new Error("Received empty audio file from server.");
+                                          }
+                                          if (originalBlob.type && !originalBlob.type.startsWith('audio/')) {
+                                            // If the server sends a content-type, and it's not audio, that's a problem.
+                                            // However, if it's empty, we proceed and hope for the best with 'audio/wav'.
+                                            console.warn(`[AudioPlayback] Suspicious content type from server: ${originalBlob.type}. Proceeding with explicit 'audio/wav'.`);
+                                          }
+
                                           const audioUrl = URL.createObjectURL(audioBlob);
                                           const audio = new Audio(audioUrl);
                                           audio.play()

@@ -152,9 +152,9 @@ This section details the specific sound events the system will aim to detect and
 *   **Sub-Task 4.1 (COMPLETED):** Update Event History table in `App.js`.
     *   Action: Modify the admin's "Event History" table to correctly parse and display new sound event types (`loud_noise_detected`) and their relevant details from the `event.details` object. (Code updated in `App.js` to format dBFS values and filename).
     *   Success Criteria: Admin can see and understand sound-related events in the event log, with dBFS values rounded and filepath shortened. (Verified after browser hard refresh)
-*   **Sub-Task 4.2 (IN PROGRESS - BLOCKED):** Implement Audio Playback for Events in Event History.
+*   **Sub-Task 4.2 (RESOLVED):** Implement Audio Playback for Events in Event History.
     *   Action (Backend): Create a Flask endpoint (`/api/audio_files/<filename>`) to serve WAV files from `/app/audio_chunks/`. (Completed, `mimetype` explicitly set to `audio/wav`).
-    *   Action (Frontend): Add a "Play" button to relevant events in `App.js`; on click, fetch and play the audio using an `<audio>` element. (Implemented, but playback fails with `NotSupportedError: Failed to load because no supported source was found` in browser console. Corrected `localStorage` key for token. Explicitly set Blob type to `audio/wav` on frontend. Next step is to verify `Content-Type` response header from backend via Network tab, then investigate frontend `encodeWAV` function if header is correct).
+    *   Action (Frontend): Add a "Play" button to relevant events in `App.js`; on click, fetch and play the audio using an `<audio>` element. (Implemented. Playback now works when using the React dev server with the `"proxy": "http://localhost:5000"` setting in `package.json` which forwards requests to the backend. The dev server may choose an alternate port like 3004 if the configured one, e.g., 3003, is busy).
     *   Success Criteria: Admin can click a "Play" button next to an audio-related event (e.g., `loud_noise_detected`) in the Event History and hear the corresponding 5-second audio chunk.
 
 ### Task 5: Testing and Refinement
@@ -219,8 +219,8 @@ This section details the specific sound events the system will aim to detect and
 -   [ ] **(PENDING)** Task 4: Frontend Implementation (Displaying Sound Events in Admin View)
     -   [x] Sub-Task 4.0 (COMPLETED): Correct Admin User Role.
     -   [x] Sub-Task 4.1 (COMPLETED): Update Event History table in `App.js`.
-    -   [ ] **Sub-Task 4.2 (IN PROGRESS - BLOCKED):** Implement Audio Playback for Events in Event History.
--   [ ] Task 5: Testing and Refinement
+    -   [x] **Sub-Task 4.2 (RESOLVED):** Implement Audio Playback for Events in Event History.
+-   [x] Task 5: Testing and Refinement (Audio Playback portion)
     -   [ ] Sub-Task 5.1: Test microphone access and audio capture
     -   [ ] Sub-Task 5.2: Test backend audio analysis accuracy
     -   [x] **Sub-Task 5.3 (Largely Completed):** Full E2E testing.
@@ -236,7 +236,7 @@ This section details the specific sound events the system will aim to detect and
 ## 7. Executor's Feedback or Assistance Requests
 *(To be filled by Executor)*
 
-**[AUDIO PLAYBACK BLOCKED]: Implemented audio playback button and backend endpoint. Frontend fetches audio file successfully but playback fails with `NotSupportedError: Failed to load because no supported source was found.` Tried correcting token key, explicitly setting Blob MIME type on frontend to `audio/wav`, and explicitly setting `mimetype='audio/wav'` on backend `send_from_directory`. Issue persists. Next diagnostic step when resuming: check `Content-Type` response header in browser Network tab for the audio file request. If correct, then frontend `encodeWAV` function is the primary suspect for creating a WAV format incompatible with browser's native audio element via Blob URL.**
+**[AUDIO PLAYBACK RESOLVED]: Implemented audio playback button and backend endpoint. Frontend fetches audio file successfully and playback now works. The issue was that the React Dev Server was not proxying `/api/...` requests to the backend. Adding `"proxy": "http://localhost:5000"` to the frontend's `package.json` and restarting the dev server resolved this. The dev server started on `http://localhost:3004` due to the configured port `3003` being busy, which is normal behavior.**
 
 **[E2E TEST SUCCESSFUL]: Conducted an E2E test with a student user performing actions like talking, making loud noises, and having a second person enter the view. The admin user correctly observed `loud_noise_detected` events and `face_analyzed` events, including a `multiple_faces_detected` scenario. The current `LOUD_NOISE_DBFS_THRESHOLD = -20.0` seemed to perform appropriately in this test. This largely completes Sub-Task 5.3 and provides initial positive feedback for Sub-Task 5.4.**
 

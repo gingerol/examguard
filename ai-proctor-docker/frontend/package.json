@@ -2,7 +2,11 @@
   "name": "ai-proctor-frontend",
   "version": "0.1.0",
   "private": true,
+  "proxy": "http://localhost:5000",
   "dependencies": {
+    "@emotion/react": "^11.11.4",
+    "@emotion/styled": "^11.11.5",
+    "@mui/material": "^5.15.15",
     "axios": "^1.0.0",
     "bootstrap": "^5.0.0",
     "react": "^18.0.0",
@@ -12,7 +16,7 @@
     "react-webcam": "^7.0.0"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "start": "PORT=3003 react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
