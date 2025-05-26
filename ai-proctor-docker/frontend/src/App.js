@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import axios from 'axios';
-import { Container, Row, Col, Button, Alert, Tab, Tabs, Table, Form, Nav, Navbar } from 'react-bootstrap';
+import { Container, Row, Col, Button as BsButton, Alert as BsAlert, Tab, Tabs, Table, Form as BsForm, Nav, Navbar as BsNavbar } from 'react-bootstrap'; // Aliased Navbar, Form, Alert
+import { Button as MuiButton, AppBar, Toolbar, Typography, Box, TextField, Alert as MuiAlert } from '@mui/material'; // Import MUI Button and AppBar components
 // Ensure 'bootstrap/dist/css/bootstrap.min.css' is imported in index.js or here
 
 /* eslint-disable jsx-a11y/media-has-caption */
@@ -573,46 +574,53 @@ function App() {
       <Container className="mt-5">
         <Row className="justify-content-center">
           <Col md={6} lg={4}>
-            <h2 className="text-center mb-4">{showRegister ? 'Register' : 'Login'}</h2>
-            {authMessage.text && <Alert variant={authMessage.type || 'info'}>{authMessage.text}</Alert>}
-            <Form onSubmit={showRegister ? handleRegister : handleLogin}>
-              <Form.Group className="mb-3" controlId="formBasicEmail">
-                <Form.Label>Username</Form.Label>
-                <Form.Control 
-                  type="text" 
-                  placeholder="Enter username" 
-                  value={authUsername} 
-                  onChange={(e) => setAuthUsername(e.target.value)} 
-                  required 
-                />
-              </Form.Group>
-
-              <Form.Group className="mb-3" controlId="formBasicPassword">
-                <Form.Label>Password</Form.Label>
-                <Form.Control 
-                  type="password" 
-                  placeholder="Password" 
-                  value={authPassword} 
-                  onChange={(e) => setAuthPassword(e.target.value)} 
-                  required 
-                />
-              </Form.Group>
-              <Button variant="primary" type="submit" className="w-100">
-                {showRegister ? 'Register' : 'Login'}
-              </Button>
-            </Form>
-            <Button 
-              variant="link" 
-              onClick={() => { 
-                setShowRegister(!showRegister); 
-                setAuthMessage({ type: '', text: '' }); 
-                setAuthUsername(''); 
-                setAuthPassword(''); 
-              }} 
-              className="mt-3 d-block text-center"
+            <Box 
+              component="form" 
+              onSubmit={showRegister ? handleRegister : handleLogin} 
+              sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}
             >
-              {showRegister ? 'Already have an account? Login' : 'Need an account? Register'}
-            </Button>
+              <Typography variant="h4" component="h2" sx={{ mb: 2 }}>
+                {showRegister ? 'Register' : 'Login'}
+              </Typography>
+              {authMessage.text && 
+                <MuiAlert severity={authMessage.type === 'danger' ? 'error' : authMessage.type || 'info'} sx={{ width: '100%' }}>
+                  {authMessage.text}
+                </MuiAlert>
+              }
+              <TextField 
+                label="Username"
+                variant="outlined"
+                type="text" 
+                value={authUsername} 
+                onChange={(e) => setAuthUsername(e.target.value)} 
+                required 
+                fullWidth
+              />
+              <TextField 
+                label="Password"
+                variant="outlined"
+                type="password" 
+                value={authPassword} 
+                onChange={(e) => setAuthPassword(e.target.value)} 
+                required 
+                fullWidth
+              />
+              <MuiButton variant="contained" type="submit" fullWidth>
+                {showRegister ? 'Register' : 'Login'}
+              </MuiButton>
+              <MuiButton 
+                variant="text" 
+                onClick={() => { 
+                  setShowRegister(!showRegister); 
+                  setAuthMessage({ type: '', text: '' }); 
+                  setAuthUsername(''); 
+                  setAuthPassword(''); 
+                }} 
+                sx={{ mt: 1 }}
+              >
+                {showRegister ? 'Already have an account? Login' : 'Need an account? Register'}
+              </MuiButton>
+            </Box>
           </Col>
         </Row>
       </Container>
@@ -622,18 +630,33 @@ function App() {
   // Main application UI (if authenticated)
   return (
     <>
-      <Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
+      <AppBar position="static">
         <Container>
-          <Navbar.Brand href="#">AI Proctoring System</Navbar.Brand>
-          <Navbar.Toggle aria-controls="basic-navbar-nav" />
-          <Navbar.Collapse id="basic-navbar-nav">
-            <Nav className="ms-auto">
-              {currentUser && <Navbar.Text className="me-3">Signed in as: {currentUser.username} ({currentUser.role})</Navbar.Text>}
-              {currentUser && <Button variant="outline-light" onClick={handleLogout}>Logout</Button>}
-            </Nav>
-          </Navbar.Collapse>
+          <Toolbar disableGutters> {/* disableGutters to use Container's padding */} 
+            <Typography
+              variant="h6"
+              noWrap
+              component="a"
+              href="#"
+              sx={{ 
+                mr: 2, 
+                flexGrow: 1, // Pushes items to the right
+                fontFamily: 'monospace', 
+                fontWeight: 700, 
+                letterSpacing: '.1rem', 
+                color: 'inherit', 
+                textDecoration: 'none', 
+              }}
+            >
+              AI Proctoring System
+            </Typography>
+            <Box sx={{ flexGrow: 0 }}> {/* Container for items on the right */} 
+              {currentUser && <Typography variant="body1" component="span" sx={{ mr: 2 }}>Signed in as: {currentUser.username} ({currentUser.role})</Typography>}
+              {currentUser && <MuiButton color="inherit" onClick={handleLogout}>Logout</MuiButton>}
+            </Box>
+          </Toolbar>
         </Container>
-      </Navbar>
+      </AppBar>
 
       <Container className="mt-4">
         <h1 className="text-center mb-4">AI Proctoring System</h1>
@@ -670,67 +693,68 @@ function App() {
               <Col md={8} lg={6} className="d-flex flex-column align-items-center">
                 {currentUser && currentUser.role === 'student' && (
                   <>
-                    <Button onClick={toggleMonitoring} variant={isMonitoring ? "danger" : "success"} className="me-2" disabled={isTogglingAudio || isTogglingVideo}>
+                    <BsButton onClick={toggleMonitoring} variant={isMonitoring ? "danger" : "success"} className="me-2" disabled={isTogglingAudio || isTogglingVideo}>
                       {isMonitoring ? 'Stop Video Monitoring' : 'Start Video Monitoring'}
-                    </Button>
-                    <Button onClick={toggleAudioMonitoring} variant={isAudioMonitoring ? "danger" : "success"} disabled={isTogglingAudio}>
+                    </BsButton>
+                    <BsButton onClick={toggleAudioMonitoring} variant={isAudioMonitoring ? "danger" : "success"} disabled={isTogglingAudio}>
                       {isAudioMonitoring ? 'Stop Sound Monitoring' : 'Start Sound Monitoring'}
-                    </Button>
+                    </BsButton>
                   </>
                 )}
                 {currentUser && currentUser.role === 'admin' && (
                   <>
-                    <Button 
-                      variant={isMonitoring ? "danger" : "success"} 
+                    <MuiButton 
+                      variant="contained" 
+                      color={isMonitoring ? "error" : "success"} 
                       onClick={toggleMonitoring}
-                      size="lg"
-                      className="mb-2 w-100"
+                      size="large"
+                      sx={{ mb: 1, width: '100%' }} // MUI styling via sx prop
                     >
                       {isMonitoring ? "Stop Face Monitoring" : "Start Face Monitoring"}
-                    </Button>
+                    </MuiButton>
                     
-                    <Button 
+                    <BsButton 
                       variant={isAudioMonitoring ? "warning" : "info"} 
                       onClick={toggleAudioMonitoring}
                       size="lg"
                       className="mb-2 w-100"
                     >
                       {isAudioMonitoring ? 'Stop Sound Monitoring' : 'Start Sound Monitoring'}
-                    </Button>
+                    </BsButton>
                   </>
                 )}
 
                 {offlineMode && (
-                  <Button 
+                  <BsButton 
                     variant="primary" 
                     onClick={syncOfflineData}
                     disabled={offlineData.length === 0}
                     size="lg"
                   >
                     Sync Data ({offlineData.length})
-                  </Button>
+                  </BsButton>
                 )}
               </Col>
             </Row>
             
             <Row className="justify-content-center">
               <Col md={8} lg={6}>
-                <Alert variant={status.startsWith('Error') ? 'danger' : (offlineMode ? 'warning' : 'info')} className="mt-3 text-center">
+                <BsAlert variant={status.startsWith('Error') ? 'danger' : (offlineMode ? 'warning' : 'info')} className="mt-3 text-center">
                   <strong>Status:</strong> {status}
-                </Alert>
+                </BsAlert>
                 {audioStatusMessage && audioStatusMessage.text && 
-                  <Alert variant={audioStatusMessage.type} className="mt-2 text-center">
+                  <BsAlert variant={audioStatusMessage.type} className="mt-2 text-center">
                     <strong>Audio Status:</strong> {audioStatusMessage.text}
-                  </Alert>
+                  </BsAlert>
                 }
                 
                 <div className="mt-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                   <h5 className="text-center">Event Log:</h5>
                   {alerts.length === 0 && <p className="text-center text-muted">No events yet.</p>}
                   {alerts.map((alert, index) => (
-                    <Alert key={index} variant="light" className="p-2 mb-2">
+                    <BsAlert key={index} variant="light" className="p-2 mb-2">
                       <small><em>{alert.timestamp}</em>: {alert.message}</small>
-                    </Alert>
+                    </BsAlert>
                   ))}
                 </div>
               </Col>
@@ -780,7 +804,7 @@ function App() {
                                 {(event.event_type === 'loud_noise_detected' || event.event_type === 'audio_chunk_saved') && 
                                  event.details && (event.details.original_filepath || event.details.filepath) && (
                                   <li>
-                                    <Button 
+                                    <BsButton 
                                       variant="info" 
                                       size="sm"
                                       className='mt-1'
@@ -823,7 +847,7 @@ function App() {
                                       }}
                                     >
                                       Play Audio
-                                    </Button>
+                                    </BsButton>
                                   </li>
                                 )}
                               </ul>

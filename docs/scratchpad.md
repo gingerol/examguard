@@ -2,15 +2,16 @@
 
 ## Current Task Focus
 
-**Overall Goal:** Implement Advanced Proctoring Features (Sound Detection and Screen Monitoring).
+**Overall Goal:** Enhance UI/UX for all users and improve Admin Log Handling.
 
-**Current Phase:** Sound Detection - Implementing Audio Playback in Event History
+**Current Phase:** UI/UX and Admin Log Enhancements - Planning Phase Complete, ready for Execution.
 
 **Active Implementation Plans:**
-1.  `docs/implementation-plan/sound-detection.md` (Currently working on Sub-Task 4.2 - Audio Playback, which is BLOCKED by `NotSupportedError` in browser when attempting to play fetched audio).
-2.  `docs/implementation-plan/screen-monitoring.md` (Not started)
+1.  `docs/implementation-plan/ui-ux-admin-log-enhancements.md` (Newly created, ready for execution)
+2.  `docs/implementation-plan/sound-detection.md` (Audio playback implemented and committed. Main goals for this plan are complete.)
+3.  `docs/implementation-plan/screen-monitoring.md` (Not started)
 
-**Completed Tasks:**
+**Completed Task Plans:**
 *   User Authentication: `docs/implementation-plan/user-authentication.md` (Merged via PR #2)
 
 ## Key Information & Links
