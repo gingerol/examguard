@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender-dev \
     libgl1-mesa-glx \
     libglib2.0-0 \
+    ffmpeg \
     # Add other dependencies as identified during build or runtime if necessary
     && rm -rf /var/lib/apt/lists/*
 
@@ -21,11 +22,15 @@ COPY requirements.txt .
 # Ensure all dependencies in requirements.txt are compatible with the Python version and each other
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Explicitly install Flask-JWT-Extended to try and isolate the issue
+# Explicitly install Flask-JWT-Extended to ensure it's available
 RUN pip install --no-cache-dir Flask-JWT-Extended
 
-# Copy application code
-# This includes app.py and the helper modules (face_detector.py, etc.)
+# Explicitly install audio libraries to ensure they are available
+RUN pip install --no-cache-dir librosa
+RUN pip install --no-cache-dir webrtcvad-wheels
+
+# Explicitly copy the mp3 file, then copy the rest
+COPY file.mp3 /app/file.mp3
 COPY . .
 
 # Ensure model files used by face_detector.py, face_landmarks.py are copied
