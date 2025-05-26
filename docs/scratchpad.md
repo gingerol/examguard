@@ -2,16 +2,19 @@
 
 ## Current Task Focus
 
-**Overall Goal:** Implement Advanced Proctoring Features (Sound Detection and Screen Monitoring).
+**Overall Goal:** Implement Advanced Proctoring Features (Sound Detection, Screen Monitoring, Admin Dashboard, Nested Users).
 
-**Current Phase:** Sound Detection - Implementing Audio Playback in Event History
+**Current Phase:** Admin Multi-Student Dashboard - Planning and Initial Setup.
 
 **Active Implementation Plans:**
-1.  `docs/implementation-plan/sound-detection.md` (Currently working on Sub-Task 4.2 - Audio Playback, which is BLOCKED by `NotSupportedError` in browser when attempting to play fetched audio).
-2.  `docs/implementation-plan/screen-monitoring.md` (Not started)
+1.  `docs/implementation-plan/admin-multi-student-dashboard.md` (NEW - Current Focus)
+2.  `docs/implementation-plan/sound-detection.md` (Recent UI refinements completed. Paused for now.)
+3.  `docs/implementation-plan/screen-monitoring.md` (Not started)
+4.  `docs/implementation-plan/nested-user-hierarchy.md` (To be created after admin dashboard)
 
 **Completed Tasks:**
 *   User Authentication: `docs/implementation-plan/user-authentication.md` (Merged via PR #2)
+*   Sound Detection - Audio Playback & Initial UI: (Considered complete for now, refinements for student view done)
 
 ## Key Information & Links
 
@@ -35,41 +38,29 @@
 *   **[2025-05-26] Verify User Existence for Login Issues:** For 401 "Bad username or password" errors, confirm user existence in the database, especially after data modifications or volume changes.
 *   **[2025-05-26] MongoDB Collection Name Consistency:** Ensure collection names in queries match those in application code.
 *   **[2025-05-26] Default User Role on Registration:** If the frontend registration UI does not specify a role, the backend may default all new users to a 'student' role. This can prevent access to admin-only features if an 'admin' user is registered via this UI. Manual DB update or a dedicated admin creation mechanism is needed.
+*   **[2025-05-27] React Dev Server Proxy:** For API requests (e.g., `/api/...`) from a React app served by `react-scripts` (webpack dev server) to a separate backend server during development, a `"proxy"` key (e.g., `"proxy": "http://localhost:5000"`) must be added to the frontend's `package.json`. Otherwise, the dev server will attempt to handle these API routes itself, often resulting in `text/html` responses for API calls and incorrect headers (like `x-powered-by: Express`), leading to errors like `NotSupportedError` for media playback. Ensure the dev server is fully restarted after adding this setting.
+*   **[2025-05-27] Port Conflicts with `npm start`:** If the port specified in `PORT=xxxx npm start` (or the default port, usually 3000) is in use, `react-scripts` will typically prompt to use the next available port. Always check the terminal output from `npm start` to confirm the actual port the development server is running on (e.g., `http://localhost:3004` instead of `http://localhost:3003`).
 
 ## Notes & Reminders
 
-*   For Sound Detection and Screen Monitoring, thorough research into browser APIs and user permission handling will be crucial.
-*   Decide which advanced feature to plan in detail first: Sound Detection or Screen Monitoring.
-*   **SOUND DETECTION - AUDIO PLAYBACK: WORKING via React Dev Server proxy! Audio plays correctly when accessing the dev server (e.g., http://localhost:3004 after port conflict resolution). The issue was the missing `proxy` setting in `package.json` for the frontend dev server.**
+*   The Admin Multi-Student Dashboard will require significant backend API changes and a new frontend view.
+*   Consider using WebSockets for real-time updates on the dashboard.
 
 ## Current Task
-- **Task:** [SOUND DETECTION] Implement Audio Playback for Events in Event History (Sub-Task 4.2 of `sound-detection.md`)
-- **Status:** RESOLVED - Audio playback works when using the React development server with the `proxy` setting in `package.json`.
-- **Implementation Plan:** [`docs/implementation-plan/sound-detection.md`](docs/implementation-plan/sound-detection.md)
+- **Task:** [ADMIN DASHBOARD] Initial planning and setup for Admin Multi-Student Dashboard.
+- **Status:** Planning phase. New implementation plan created.
+- **Implementation Plan:** [`docs/implementation-plan/admin-multi-student-dashboard.md`](docs/implementation-plan/admin-multi-student-dashboard.md)
 
 ## Detailed Steps (from Implementation Plan)
-*(To be filled by Executor as tasks from the sound detection plan are completed)*
-- Task 0-3: Completed
-- Task 4.0-4.1: Completed
-- Task 4.2: RESOLVED
+*(To be filled by Executor as tasks from the admin dashboard plan are actioned)*
 
-## Lessons Learned
-- [YYYY-MM-DD] Initial lesson entry.
-- [2024-07-24] Pivoted from direct OS installation to a Docker-based containerized approach. This required a full rewrite of the setup plan. Branch name changed to `feature/setup-environment-docker`.
-- [2024-07-24] Critical Error: Planned Linux-specific commands (`apt`) for a macOS (`darwin`) environment. Package management and Docker installation steps must be OS-appropriate. For macOS, Docker Desktop is the standard and includes Docker Compose. `sudo apt update/upgrade` and `usermod` are incorrect for macOS Docker setup.
-- [2024-07-24] Potential Blocker: The backend's Python helper scripts (`face_detector.py`, etc.) likely require pre-trained model files. These were not explicitly copied from the cloned `Proctoring-AI` repo into the `backend/` build context. The backend Docker image build might succeed, but the application will fail at runtime if models are missing. The `Dockerfile` has a `COPY . .` command; model files need to be in the `backend` directory for this to work, and Python scripts need to reference them correctly.
+## Previous Task (Sound Detection UI Refinements)
+- **Task:** [SOUND DETECTION] UI Refinements for Student View (Button colors, labels, font sizes).
+- **Status:** Completed. Changes committed to `feature/sound-detection`.
+- **Implementation Plan:** [`docs/implementation-plan/sound-detection.md`](docs/implementation-plan/sound-detection.md)
 
-Status: New plan created. Ready to begin execution.
+---
+*(Older entries from sound-detection.md may be archived or summarized if this section becomes too long)*
 
-Next Steps: Proceed with Task 4: Testing and Refinement from `docs/implementation-plan/user-authentication.md`.
-
-*   **[2025-05-24]** Initial OS-specific commands (`apt update`) are not portable. Always verify target OS or use containerization for broader compatibility.
-*   **[2025-05-24]** AI/ML helper scripts often have dependencies on specific model files. Ensure these are included in the deployment package/Docker image (`Proctoring-AI/models` directory).
-*   **[2025-05-24]** Docker credential helper issues (`docker-credential-desktop not found`) can block Docker builds on macOS. Symlinking the executable (`/Applications/Docker.app/Contents/Resources/bin/docker-credential-desktop` to `/usr/local/bin/`) and restarting Docker Desktop resolves this.
-*   **[2025-05-24]** Default Nginx port (`80` inside container) mapped to host port `3000` can conflict if `3000` is in use. Changed to `3001:80`.
-*   **[2025-05-24]** OpenCV GUI calls (e.g., `cv2.namedWindow`, `cv2.imshow`, `cv2.createTrackbar`) in backend scripts will cause crashes (Qt/XCB errors, SIGABRT) in headless Docker environments. These must be removed or conditionally excluded.
-*   **[2025-05-24]** When sourcing scripts from external repositories, verify function signatures and availability. `get_eye_status` was missing from the `Proctoring-AI` `eye_tracker.py` and had to be implemented based on its `track_eye` logic, and `app.py` updated to call it correctly.
-*   **[2025-05-24]** Ensure `numpy` is available and imported if numpy array operations are used (e.g. `np.frombuffer`, `np.uint8`, `np.int32`, `np.linalg.norm`
-*   **[2025-05-26]** Default User Role on Registration: If the frontend registration UI does not specify a role, the backend may default all new users to a 'student' role. This can prevent access to admin-only features if an 'admin' user is registered via this UI. Manual DB update or a dedicated admin creation mechanism is needed.
-*   **[2025-05-27]** React Dev Server Proxy: For API requests (e.g., `/api/...`) from a React app served by `react-scripts` (webpack dev server) to a separate backend server during development, a `"proxy"` key (e.g., `"proxy": "http://localhost:5000"`) must be added to the frontend's `package.json`. Otherwise, the dev server will attempt to handle these API routes itself, often resulting in `text/html` responses for API calls and incorrect headers (like `x-powered-by: Express`), leading to errors like `NotSupportedError` for media playback. Ensure the dev server is fully restarted after adding this setting.
-*   **[2025-05-27]** Port Conflicts with `npm start`: If the port specified in `PORT=xxxx npm start` (or the default port, usually 3000) is in use, `react-scripts` will typically prompt to use the next available port. Always check the terminal output from `npm start` to confirm the actual port the development server is running on (e.g., `http://localhost:3004` instead of `http://localhost:3003`).
+## Lessons Learned (New - Add items here as they occur)
+- [YYYY-MM-DD] New lesson entry for this session.

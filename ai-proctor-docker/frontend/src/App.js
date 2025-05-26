@@ -1,8 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import axios from 'axios';
-import { Container, Row, Col, Button, Alert, Tab, Tabs, Table, Form, Nav, Navbar } from 'react-bootstrap';
-// Ensure 'bootstrap/dist/css/bootstrap.min.css' is imported in index.js or here
+// import { Container, Row, Col, Button, Alert, Tab, Tabs, Table, Form, Nav, Navbar } from 'react-bootstrap'; // Old imports
+
+// MUI Imports
+// ThemeProvider, createTheme, CssBaseline are in index.js
+import AppBar from '@mui/material/AppBar';
+import Toolbar from '@mui/material/Toolbar';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button'; // MUI Button
+import Container from '@mui/material/Container'; // MUI Container
+// import Grid from '@mui/material/Grid'; // Will be added when used
+import Alert from '@mui/material/Alert'; // MUI Alert - to be used later
+import Tabs from '@mui/material/Tabs'; // MUI Tabs - to be used later
+import Tab from '@mui/material/Tab'; // MUI Tab - to be used later
+import Box from '@mui/material/Box';
+// Table components will be imported later if needed for the event history table
+// Form components will be imported later if needed for login/register
+
+// Keep react-bootstrap components that are still in use, or alias them if names conflict and MUI isn't replacing them yet.
+// import { Nav, Navbar as BsNavbar } from 'react-bootstrap'; // Nav and BsNavbar not currently used after AppBar introduction
+import { Row, Col, Table, Form } from 'react-bootstrap'; // Tabs, Tab from react-bootstrap are still used for now.
+import { Tabs as BsTabs, Tab as BsTab } from 'react-bootstrap'; // Explicitly alias react-bootstrap Tabs/Tab
 
 /* eslint-disable jsx-a11y/media-has-caption */
 
@@ -622,28 +641,87 @@ function App() {
   // Main application UI (if authenticated)
   return (
     <>
-      <Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
-        <Container>
-          <Navbar.Brand href="#">AI Proctoring System</Navbar.Brand>
-          <Navbar.Toggle aria-controls="basic-navbar-nav" />
-          <Navbar.Collapse id="basic-navbar-nav">
-            <Nav className="ms-auto">
-              {currentUser && <Navbar.Text className="me-3">Signed in as: {currentUser.username} ({currentUser.role})</Navbar.Text>}
-              {currentUser && <Button variant="outline-light" onClick={handleLogout}>Logout</Button>}
-            </Nav>
-          </Navbar.Collapse>
+      {/* MUI AppBar */}
+      <AppBar position="static">
+        <Container maxWidth="xl"> {/* or "lg", "md", "sm", "xs" or false to disable max-width */} 
+          <Toolbar disableGutters>
+            <Typography
+              variant="h6"
+              noWrap
+              component="a"
+              href="#"
+              sx={{ 
+                mr: 2, 
+                display: { xs: 'none', md: 'flex' },
+                fontFamily: 'monospace',
+                fontWeight: 700,
+                letterSpacing: '.1rem',
+                color: 'inherit',
+                textDecoration: 'none',
+              }}
+            >
+              AI Proctoring System
+            </Typography>
+
+            {/* Mobile menu icon might be needed here if more nav items are added */}
+            {/* For now, keeping it simple as original had few items */}
+            
+            <Box sx={{ flexGrow: 1, display: { xs: 'flex', md: 'none' } }}>
+              {/* Hamburger menu icon for mobile if needed */}
+            </Box>
+            <Typography
+              variant="h5"
+              noWrap
+              component="a"
+              href="#"
+              sx={{
+                mr: 2,
+                display: { xs: 'flex', md: 'none' },
+                flexGrow: 1,
+                fontFamily: 'monospace',
+                fontWeight: 700,
+                letterSpacing: '.1rem',
+                color: 'inherit',
+                textDecoration: 'none',
+              }}
+            >
+              AI Proctoring
+            </Typography>
+            
+            {/* Desktop Nav Items - ms-auto equivalent for MUI is Box with marginLeft: auto */}
+            <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' } }} /> {/* Spacer */} 
+            <Box sx={{ display: 'flex' }}>
+              {currentUser && (
+                <Typography sx={{ mr: 2, alignSelf: 'center' }}>
+                  Signed in as: {currentUser.username} ({currentUser.role})
+                </Typography>
+              )}
+              {currentUser && (
+                <Button color="inherit" onClick={handleLogout} variant="outlined">
+                  Logout
+                </Button>
+              )}
+            </Box>
+          </Toolbar>
         </Container>
-      </Navbar>
+      </AppBar>
 
-      <Container className="mt-4">
-        <h1 className="text-center mb-4">AI Proctoring System</h1>
-        <p className="text-center text-muted mb-3">Session ID: {sessionId}</p>
+      {/* Use MUI Container for main content area */}
+      <Container component="main" sx={{ mt: 4, mb: 4 }}>
+        <Typography component="h1" variant="h4" align="center" gutterBottom>
+          AI Proctoring System
+        </Typography>
+        <Typography variant="subtitle1" align="center" color="text.secondary" paragraph>
+          Session ID: {sessionId}
+        </Typography>
 
-        <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} id="proctoring-tabs" className="mb-3">
-          <Tab eventKey="monitor" title="Monitoring">
+        {/* Tabs remain react-bootstrap for now, will be complex to change all at once */}
+        {/* Ensure BsNavbar is used if any Navbar remnants are from react-bootstrap */}
+        <BsTabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} id="proctoring-tabs" className="mb-3">
+          <BsTab eventKey="monitor" title="Monitoring">
             <Row className="justify-content-center mb-3">
               <Col md={8} lg={6}>
-                <div className="position-relative border bg-light p-2" style={{ minHeight: '380px' }}>
+                <Box className="position-relative border bg-light p-2" sx={{ minHeight: '380px' }}> {/* Using Box for styling wrapper */}
                   <Webcam
                     audio={false}
                     ref={webcamRef}
@@ -662,7 +740,7 @@ function App() {
                       <strong>OFFLINE MODE</strong>
                     </div>
                   )}
-                </div>
+                </Box>
               </Col>
             </Row>
             
@@ -670,30 +748,23 @@ function App() {
               <Col md={8} lg={6} className="d-flex flex-column align-items-center">
                 {currentUser && currentUser.role === 'student' && (
                   <>
-                    <Button onClick={toggleMonitoring} variant={isMonitoring ? "danger" : "success"} className="me-2" disabled={isTogglingAudio || isTogglingVideo}>
+                    <Button 
+                      onClick={toggleMonitoring} 
+                      variant="contained" 
+                      color={isMonitoring ? "error" : "success"}
+                      className="mb-2"
+                      disabled={isTogglingAudio || isTogglingVideo}
+                      sx={{ minWidth: '220px' }}
+                    >
                       {isMonitoring ? 'Stop Video Monitoring' : 'Start Video Monitoring'}
                     </Button>
-                    <Button onClick={toggleAudioMonitoring} variant={isAudioMonitoring ? "danger" : "success"} disabled={isTogglingAudio}>
-                      {isAudioMonitoring ? 'Stop Sound Monitoring' : 'Start Sound Monitoring'}
-                    </Button>
-                  </>
-                )}
-                {currentUser && currentUser.role === 'admin' && (
-                  <>
                     <Button 
-                      variant={isMonitoring ? "danger" : "success"} 
-                      onClick={toggleMonitoring}
-                      size="lg"
-                      className="mb-2 w-100"
-                    >
-                      {isMonitoring ? "Stop Face Monitoring" : "Start Face Monitoring"}
-                    </Button>
-                    
-                    <Button 
-                      variant={isAudioMonitoring ? "warning" : "info"} 
-                      onClick={toggleAudioMonitoring}
-                      size="lg"
-                      className="mb-2 w-100"
+                      onClick={toggleAudioMonitoring} 
+                      variant="contained"
+                      color={isAudioMonitoring ? "error" : "primary"}
+                      disabled={isTogglingAudio}
+                      className="mb-2"
+                      sx={{ minWidth: '220px' }}
                     >
                       {isAudioMonitoring ? 'Stop Sound Monitoring' : 'Start Sound Monitoring'}
                     </Button>
@@ -715,29 +786,44 @@ function App() {
             
             <Row className="justify-content-center">
               <Col md={8} lg={6}>
-                <Alert variant={status.startsWith('Error') ? 'danger' : (offlineMode ? 'warning' : 'info')} className="mt-3 text-center">
+                <Alert 
+                  severity={status.startsWith('Error') ? 'error' : (offlineMode ? 'warning' : 'info')} 
+                  className="mt-3 text-center"
+                  sx={{ fontSize: '1.1rem' }} // Increase font size
+                >
                   <strong>Status:</strong> {status}
                 </Alert>
                 {audioStatusMessage && audioStatusMessage.text && 
-                  <Alert variant={audioStatusMessage.type} className="mt-2 text-center">
+                  <Alert 
+                    severity={audioStatusMessage.type || 'info'} // MUI severity
+                    className="mt-2 text-center"
+                    sx={{ fontSize: '1.1rem' }} // Increase font size
+                  >
                     <strong>Audio Status:</strong> {audioStatusMessage.text}
                   </Alert>
                 }
                 
                 <div className="mt-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                  <h5 className="text-center">Event Log:</h5>
-                  {alerts.length === 0 && <p className="text-center text-muted">No events yet.</p>}
+                  <Typography variant="h6" align="center" gutterBottom sx={{ mt: 2, fontSize: '1.2rem' }}> {/* Changed h5 to Typography */}
+                    Event Log:
+                  </Typography>
+                  {alerts.length === 0 && <Typography align="center" color="textSecondary">No events yet.</Typography>}
                   {alerts.map((alert, index) => (
-                    <Alert key={index} variant="light" className="p-2 mb-2">
+                    <Alert 
+                      key={index} 
+                      severity="info" // Changed from variant="light"
+                      className="p-2 mb-2" 
+                      sx={{ fontSize: '0.95rem' }} // Adjust font size
+                    >
                       <small><em>{alert.timestamp}</em>: {alert.message}</small>
                     </Alert>
                   ))}
                 </div>
               </Col>
             </Row>
-          </Tab>
+          </BsTab>
           {currentUser && currentUser.role === 'admin' && (
-            <Tab eventKey="events" title="Event History">
+            <BsTab eventKey="events" title="Event History">
               <Row className="mt-3">
                 <Col>
                   <h4>All Event Logs</h4>
@@ -865,9 +951,9 @@ function App() {
                   </Table>
                 </Col>
               </Row>
-            </Tab>
+            </BsTab>
           )}
-        </Tabs>
+        </BsTabs>
       </Container>
     </>
   );
