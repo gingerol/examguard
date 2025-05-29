@@ -2,15 +2,16 @@
 
 ## Current Task Focus
 
-**Overall Goal:** Implement Advanced Proctoring Features (Sound Detection, Screen Monitoring, Admin Dashboard, Nested Users).
+**Overall Goal:** Implement Advanced Proctoring Features (Sound Detection, Screen Monitoring, Admin Dashboard, Nested Users) and stabilize the frontend build.
 
-**Current Phase:** Admin Multi-Student Dashboard - Planning and Initial Setup.
+**Current Phase:** Frontend Build Resolution & Admin Multi-Student Dashboard Planning.
 
 **Active Implementation Plans:**
-1.  `docs/implementation-plan/admin-multi-student-dashboard.md` (NEW - Current Focus)
-2.  `docs/implementation-plan/sound-detection.md` (Recent UI refinements completed. Paused for now.)
-3.  `docs/implementation-plan/screen-monitoring.md` (Not started)
-4.  `docs/implementation-plan/nested-user-hierarchy.md` (To be created after admin dashboard)
+1.  `docs/implementation-plan/frontend-build-resolution.md` (NEW - Current Focus for Build Issues)
+2.  `docs/implementation-plan/admin-multi-student-dashboard.md` (Planning Phase)
+3.  `docs/implementation-plan/sound-detection.md` (Recent UI refinements completed. Paused for now.)
+4.  `docs/implementation-plan/screen-monitoring.md` (Not started)
+5.  `docs/implementation-plan/nested-user-hierarchy.md` (To be created after admin dashboard)
 
 **Completed Tasks:**
 *   User Authentication: `docs/implementation-plan/user-authentication.md` (Merged via PR #2)
@@ -40,6 +41,7 @@
 *   **[2025-05-26] Default User Role on Registration:** If the frontend registration UI does not specify a role, the backend may default all new users to a 'student' role. This can prevent access to admin-only features if an 'admin' user is registered via this UI. Manual DB update or a dedicated admin creation mechanism is needed.
 *   **[2025-05-27] React Dev Server Proxy:** For API requests (e.g., `/api/...`) from a React app served by `react-scripts` (webpack dev server) to a separate backend server during development, a `"proxy"` key (e.g., `"proxy": "http://localhost:5000"`) must be added to the frontend's `package.json`. Otherwise, the dev server will attempt to handle these API routes itself, often resulting in `text/html` responses for API calls and incorrect headers (like `x-powered-by: Express`), leading to errors like `NotSupportedError` for media playback. Ensure the dev server is fully restarted after adding this setting.
 *   **[2025-05-27] Port Conflicts with `npm start`:** If the port specified in `PORT=xxxx npm start` (or the default port, usually 3000) is in use, `react-scripts` will typically prompt to use the next available port. Always check the terminal output from `npm start` to confirm the actual port the development server is running on (e.g., `http://localhost:3004` instead of `http://localhost:3003`).
+*   **[2025-05-28] Webpack Polyfill Specificity (`process/browser`):** When providing polyfills for Node.js core modules like `process` in Webpack 5 (via `react-app-rewired` and `config-overrides.js`), some packages (e.g., `axios`) might attempt to import highly specific paths like `process/browser`. A simple fallback for `"process": require.resolve("process/browser")` might not be enough. The error "BREAKING CHANGE: The request 'process/browser' failed to resolve only because it was resolved as fully specified" is a strong indicator. Using `resolve.alias` to explicitly map `'process/browser': require.resolve('process/browser.js')` can be a more robust solution.
 
 ## Notes & Reminders
 
@@ -47,12 +49,12 @@
 *   Consider using WebSockets for real-time updates on the dashboard.
 
 ## Current Task
-- **Task:** [ADMIN DASHBOARD] Initial planning and setup for Admin Multi-Student Dashboard.
+- **Task:** [FRONTEND BUILD] Resolve persistent build errors (`axios` and MUI related).
 - **Status:** Planning phase. New implementation plan created.
-- **Implementation Plan:** [`docs/implementation-plan/admin-multi-student-dashboard.md`](docs/implementation-plan/admin-multi-student-dashboard.md)
+- **Implementation Plan:** [`docs/implementation-plan/frontend-build-resolution.md`](docs/implementation-plan/frontend-build-resolution.md)
 
 ## Detailed Steps (from Implementation Plan)
-*(To be filled by Executor as tasks from the admin dashboard plan are actioned)*
+*(To be filled by Executor as tasks from the frontend build resolution plan are actioned)*
 
 ## Previous Task (Sound Detection UI Refinements)
 - **Task:** [SOUND DETECTION] UI Refinements for Student View (Button colors, labels, font sizes).
@@ -63,4 +65,4 @@
 *(Older entries from sound-detection.md may be archived or summarized if this section becomes too long)*
 
 ## Lessons Learned (New - Add items here as they occur)
-- [YYYY-MM-DD] New lesson entry for this session.
+- [2025-05-28] When facing persistent, complex build issues after multiple attempts, switching from an iterative Executor mode to a more structured Planner mode is beneficial to re-evaluate and form a systematic plan.

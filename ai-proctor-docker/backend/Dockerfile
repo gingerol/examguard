@@ -23,11 +23,11 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Explicitly install Flask-JWT-Extended to ensure it's available
-RUN pip install --no-cache-dir Flask-JWT-Extended
+# RUN pip install --no-cache-dir Flask-JWT-Extended # Already in requirements.txt now through SocketIO or direct add
 
 # Explicitly install audio libraries to ensure they are available
-RUN pip install --no-cache-dir librosa
-RUN pip install --no-cache-dir webrtcvad-wheels
+# RUN pip install --no-cache-dir librosa # Already in requirements.txt
+# RUN pip install --no-cache-dir webrtcvad-wheels # Not currently used, can be added if vad is implemented
 
 # Explicitly copy the mp3 file, then copy the rest
 # COPY file.mp3 /app/file.mp3 # Removed this line as file.mp3 was a test file and has been deleted
@@ -42,6 +42,7 @@ COPY . .
 # Expose port that Gunicorn will run on
 EXPOSE 5000
 
-# Define command to run the application using Gunicorn
-# Ensure app:app correctly points to your Flask app instance in app.py
-CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "app:app"] 
+# Define command to run the application using Gunicorn with Eventlet worker for SocketIO
+# Ensure app:socketio correctly points to your SocketIO app instance in app.py
+# The format for Gunicorn with SocketIO is typically app:app, and Gunicorn is made aware of SocketIO via the worker class.
+CMD ["gunicorn", "--workers", "1", "--worker-class", "eventlet", "-b", "0.0.0.0:5000", "app:app"] 

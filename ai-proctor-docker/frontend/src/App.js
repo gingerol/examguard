@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
-import Webcam from 'react-webcam';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate, Link as RouterLink } from 'react-router-dom';
+import Webcam from 'react-webcam'; // Unused -> // UNCOMMENTED
 import axios from 'axios';
 // import { Container, Row, Col, Button, Alert, Tab, Tabs, Table, Form, Nav, Navbar } from 'react-bootstrap'; // Old imports
 
@@ -12,34 +13,301 @@ import Button from '@mui/material/Button'; // MUI Button
 import Container from '@mui/material/Container'; // MUI Container
 // import Grid from '@mui/material/Grid'; // Will be added when used
 import Alert from '@mui/material/Alert'; // MUI Alert - to be used later
-import Tabs from '@mui/material/Tabs'; // MUI Tabs - to be used later
-import Tab from '@mui/material/Tab'; // MUI Tab - to be used later
+// import Tabs from '@mui/material/Tabs'; // Unused MUI Tabs
+// import Tab from '@mui/material/Tab'; // Unused MUI Tab
 import Box from '@mui/material/Box';
+import Paper from '@mui/material/Paper';
+import TextField from '@mui/material/TextField';
+import Grid from '@mui/material/Grid';
+import MuiLink from '@mui/material/Link';
 // Table components will be imported later if needed for the event history table
 // Form components will be imported later if needed for login/register
 
 // Keep react-bootstrap components that are still in use, or alias them if names conflict and MUI isn't replacing them yet.
 // import { Nav, Navbar as BsNavbar } from 'react-bootstrap'; // Nav and BsNavbar not currently used after AppBar introduction
-import { Row, Col, Table, Form } from 'react-bootstrap'; // Tabs, Tab from react-bootstrap are still used for now.
+import { Row, Col } from 'react-bootstrap'; // Table, Form, Tabs, Tab from react-bootstrap are still used for now. Re-evaluating.
+// import { Table, Form } from 'react-bootstrap'; // Table and Form are not used at the top level of App.js, Row/Col are. Re-evaluating.
 import { Tabs as BsTabs, Tab as BsTab } from 'react-bootstrap'; // Explicitly alias react-bootstrap Tabs/Tab
 
+// Import the new AdminDashboard component
+import AdminDashboard from './components/AdminDashboard/AdminDashboard';
+// NEW: Import the AdminAlertLog component
+import AdminAlertLog from './components/AdminAlertLog/AdminAlertLog';
+
 /* eslint-disable jsx-a11y/media-has-caption */
+
+// Define StableWebcam wrapper
+const StableWebcam = React.memo(React.forwardRef((props, ref) => {
+  return <Webcam {...props} ref={ref} />;
+}));
+
+const VIDEO_CONSTRAINTS = { // Defined as a constant
+  width: 1280,
+  height: 720,
+  facingMode: "user"
+};
+
+// NEW: AuthPage Component
+const AuthPage = ({ 
+  showRegister, 
+  authMessage, 
+  handleRegister, 
+  handleLogin, 
+  authUsername, 
+  setAuthUsername, 
+  authPassword, 
+  setAuthPassword, 
+  setShowRegister, 
+  setAuthMessage // Added setAuthMessage to clear on toggle
+}) => {
+  return (
+    <Container component="main" maxWidth="xs" sx={{ mt: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <Paper elevation={3} sx={{ padding: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+        <Typography component="h1" variant="h5" color="primary">
+          {showRegister ? 'Register' : 'Login'}
+        </Typography>
+        {authMessage.text && (
+          <Alert severity={authMessage.type || 'info'} sx={{ width: '100%', mt: 2, mb: 1 }}>
+            {authMessage.text}
+          </Alert>
+        )}
+        <Box component="form" onSubmit={showRegister ? handleRegister : handleLogin} noValidate sx={{ mt: 1, width: '100%' }}>
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="username"
+            label="Username"
+            name="username"
+            autoComplete="username"
+            autoFocus
+            value={authUsername}
+            onChange={(e) => setAuthUsername(e.target.value)}
+          />
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="password"
+            label="Password"
+            type="password"
+            id="password"
+            autoComplete="current-password"
+            value={authPassword}
+            onChange={(e) => setAuthPassword(e.target.value)}
+          />
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            sx={{ mt: 3, mb: 2 }}
+          >
+            {showRegister ? 'Register' : 'Sign In'}
+          </Button>
+          <Grid container justifyContent="flex-end">
+            <Grid item>
+              <MuiLink href="#" variant="body2" onClick={() => { setShowRegister(!showRegister); setAuthMessage({ type: '', text: '' }); }}>
+                {showRegister ? "Already have an account? Sign in" : "Don't have an account? Sign Up"}
+              </MuiLink>
+            </Grid>
+          </Grid>
+        </Box>
+      </Paper>
+    </Container>
+  );
+};
+
+// NEW: StudentMonitorPage Component
+const StudentMonitorPage = ({
+  sessionId,
+  isMonitoring,
+  toggleMonitoring,
+  isTogglingVideo,
+  toggleAudioMonitoring,
+  isAudioMonitoring,
+  isTogglingAudio, // Added this prop
+  syncOfflineData,
+  offlineMode,
+  offlineData,
+  webcamRef,
+  status,
+  alerts,
+  activeTab,
+  setActiveTab,
+  fetchEvents,
+  events
+}) => {
+  return (
+    <Container maxWidth="lg" sx={{ mt: 2, mb: 2 }}>
+      <Typography variant="h4" component="h1" gutterBottom color="primary" sx={{ textAlign: 'center', mb:3 }}>
+        AI Proctoring Session: {sessionId}
+      </Typography>
+      <Row className="mb-3">
+        <Col>
+          <Button 
+            variant="contained" 
+            onClick={toggleMonitoring} 
+            disabled={isTogglingVideo}
+            color={isMonitoring ? "error" : "success"}
+            sx={{ mr: 1 }}
+          >
+            {isMonitoring ? 'Stop Video Monitoring' : 'Start Video Monitoring'}
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={toggleAudioMonitoring} 
+            disabled={isTogglingAudio}
+            color={isAudioMonitoring ? "error" : "success"}
+          >
+            {isAudioMonitoring ? 'Stop Audio Monitoring' : 'Start Audio Monitoring'}
+          </Button>
+        </Col>
+        <Col xs="auto">
+          <Button variant="outlined" onClick={syncOfflineData} disabled={!offlineMode || offlineData.length === 0}>
+            Sync Offline Data ({offlineData.length})
+          </Button>
+        </Col>
+      </Row>
+      <Row className="mb-3">
+        <Col md={8}>
+          <Paper elevation={2} sx={{ p:2, position: 'relative', overflow: 'hidden' }}>
+            {isMonitoring ? (
+              <StableWebcam
+                ref={webcamRef}
+                audio={false}
+                screenshotFormat="image/jpeg"
+                width="100%"
+                height="auto"
+                videoConstraints={VIDEO_CONSTRAINTS}
+                mirrored={true}
+              />
+            ) : (
+              <Box sx={{ height: 300, backgroundColor: 'grey.200', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px' }}>
+                <Typography variant="h6" color="textSecondary">Video Monitoring Off</Typography>
+              </Box>
+            )}
+            <Typography variant="caption" sx={{ position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.5)', color: 'white', p:0.5, borderRadius:1 }}>
+              Status: {status}
+            </Typography>
+          </Paper>
+        </Col>
+        <Col md={4}>
+          <Paper elevation={2} sx={{ p:2, height: '100%' }}>
+            <Typography variant="h6" gutterBottom>Event Log</Typography>
+            <BsTabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} id="event-log-tabs" className="mb-3">
+              <BsTab eventKey="monitor" title="Session Alerts">
+                <Box sx={{ maxHeight: 250, overflowY: 'auto' }}>
+                  {alerts.length > 0 ? (
+                    alerts.map((alert, index) => (
+                      <Alert severity="warning" key={index} sx={{ mb: 1 }}>{alert.timestamp} - {alert.message}</Alert>
+                    ))
+                  ) : <Typography>No alerts yet.</Typography>}
+                </Box>
+              </BsTab>
+              <BsTab eventKey="history" title="Full History">
+                <Button onClick={fetchEvents} size="small" sx={{mb:1}}>Refresh History</Button>
+                <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
+                  {events.length > 0 ? events.map(e => (
+                    <Paper key={e._id} elevation={1} sx={{p:1, mb:1, fontSize:'0.8rem'}}>
+                      {new Date(e.timestamp).toLocaleString()}: {e.event_type}
+                      {e.details && typeof e.details === 'object' && (
+                        <pre style={{fontSize:'0.7rem', whiteSpace:'pre-wrap', wordBreak:'break-all'}}>
+                          {JSON.stringify(e.details, null, 2)}
+                        </pre>
+                      )}
+                    </Paper>
+                  )) : <Typography>No history fetched.</Typography>}
+                </Box>
+              </BsTab>
+            </BsTabs>
+          </Paper>
+        </Col>
+      </Row>
+    </Container>
+  );
+};
+
+// NEW: MainContentComponent (defined outside App)
+const MainContentComponent = ({
+  currentUser,
+  determineRedirectPath,
+  // Props for AuthPage
+  showRegister, authMessage, handleRegister, handleLogin, authUsername, setAuthUsername, authPassword, setAuthPassword, setShowRegister, setAuthMessage, // Added setAuthMessage
+  // Props for StudentMonitorPage
+  sessionId, isMonitoring, toggleMonitoring, isTogglingVideo, toggleAudioMonitoring, isAudioMonitoring, isTogglingAudio, syncOfflineData, offlineMode, offlineData, webcamRef, status, alerts, activeTab, setActiveTab, fetchEvents, events
+}) => {
+  if (!currentUser) {
+    return (
+      <AuthPage
+        showRegister={showRegister}
+        authMessage={authMessage}
+        handleRegister={handleRegister}
+        handleLogin={handleLogin}
+        authUsername={authUsername}
+        setAuthUsername={setAuthUsername}
+        authPassword={authPassword}
+        setAuthPassword={setAuthPassword}
+        setShowRegister={setShowRegister}
+        setAuthMessage={setAuthMessage} // Pass setAuthMessage
+      />
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to={determineRedirectPath()} replace />} />
+      {currentUser.role === 'student' && (
+        <Route path="/student/monitor" element={
+          <StudentMonitorPage
+            sessionId={sessionId}
+            isMonitoring={isMonitoring}
+            toggleMonitoring={toggleMonitoring}
+            isTogglingVideo={isTogglingVideo}
+            toggleAudioMonitoring={toggleAudioMonitoring}
+            isAudioMonitoring={isAudioMonitoring}
+            isTogglingAudio={isTogglingAudio}
+            syncOfflineData={syncOfflineData}
+            offlineMode={offlineMode}
+            offlineData={offlineData}
+            webcamRef={webcamRef}
+            status={status}
+            alerts={alerts}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            fetchEvents={fetchEvents}
+            events={events}
+          />
+        }/>
+      )}
+      {currentUser.role === 'admin' && (
+        <>
+          <Route path="/admin/dashboard" element={<AdminDashboard currentUser={currentUser} />} />
+          <Route path="/admin/alerts" element={<AdminAlertLog currentUser={currentUser} />} />
+        </>
+      )}
+      <Route path="*" element={<Navigate to={determineRedirectPath()} replace />} />
+    </Routes>
+  );
+};
 
 function App() {
   const webcamRef = useRef(null);
   const [isMonitoring, setIsMonitoring] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [status, setStatus] = useState('Ready');
+  // eslint-disable-next-line no-unused-vars
   const [alerts, setAlerts] = useState([]);
   const [offlineMode, setOfflineMode] = useState(false);
   const [isTogglingVideo, setIsTogglingVideo] = useState(false); // For video button
   const [offlineData, setOfflineData] = useState([]);
-  const [sessionId, /* eslint-disable-next-line no-unused-vars */ setSessionId] = useState(`session_${new Date().getTime()}`);
+  const [sessionId] = useState(`session_${new Date().getTime()}`);
+  // eslint-disable-next-line no-unused-vars
   const [events, setEvents] = useState([]);
   const [activeTab, setActiveTab] = useState('monitor');
 
   // Audio state
   const [isAudioMonitoring, setIsAudioMonitoring] = useState(false);
-  const [audioStatusMessage, setAudioStatusMessage] = useState({ type: 'info', text: 'Audio monitoring ready.' });
+  // const [audioStatusMessage, setAudioStatusMessage] = useState({ type: 'info', text: 'Audio monitoring ready.' }); // Unused
   const [isTogglingAudio, setIsTogglingAudio] = useState(false); // For disabling button during state changes
   const audioStreamRef = useRef(null); // To store MediaStream
   const audioContextRef = useRef(null); // To store AudioContext
@@ -51,8 +319,7 @@ function App() {
 
   // Auth state
   const [currentUser, setCurrentUser] = useState(null); // Will store { token, username, role }
-  // const [showLogin, setShowLogin] = useState(true); // Commented out as per ESLint, visibility driven by currentUser
-  const [showRegister, setShowRegister] = useState(false); // Controls visibility of registration form
+  const [showRegister, setShowRegister] = useState(false); // Controls visibility of registration form - RESTORED
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authMessage, setAuthMessage] = useState({ type: '', text: '' });
@@ -131,19 +398,28 @@ function App() {
     return new Blob(byteArrays, { type: mimeType });
   };
 
-  const addAlert = (message) => {
+  const addAlert = useCallback((message) => {
     const timestamp = new Date().toLocaleTimeString();
     setAlerts(prev => [...prev, { timestamp, message }].slice(-5)); // Keep last 5 alerts
-  };
+  }, []);
 
-  const captureAndAnalyze = async () => {
+  const captureAndAnalyze = useCallback(async () => {
     if (!webcamRef.current) return;
     
     const imageSrc = webcamRef.current.getScreenshot();
-    if (!imageSrc) return;
+    if (!imageSrc) {
+      console.log("[Debug] captureAndAnalyze: imageSrc is null or empty.");
+      return;
+    }
+    console.log("[Debug] captureAndAnalyze: imageSrc length:", imageSrc.length, "starts with:", imageSrc.substring(0, 30));
     
     const base64Data = imageSrc.split(',')[1];
+    if (!base64Data) {
+      console.log("[Debug] captureAndAnalyze: base64Data is null or empty after split.");
+      return;
+    }
     const blob = base64ToBlob(base64Data, 'image/jpeg');
+    console.log("[Debug] captureAndAnalyze: blob object:", blob);
     
     const formData = new FormData();
     formData.append('image', blob);
@@ -182,9 +458,10 @@ function App() {
         addAlert('Switched to offline mode due to connection issues.');
       }
     }
-  };
+  }, [sessionId, offlineMode, addAlert]);
   
-  const toggleMonitoring = () => {
+  // eslint-disable-next-line no-unused-vars
+  const toggleMonitoring = useCallback(() => {
     if (isTogglingVideo) return;
     setIsTogglingVideo(true);
 
@@ -192,21 +469,145 @@ function App() {
       const newIsMonitoring = !prevIsMonitoring;
       if (newIsMonitoring) { // About to start
         setStatus('Starting monitoring...');
-        setAlerts([]); // Clear previous alerts
+        addAlert('Monitoring started.');
       } else { // About to stop
         setStatus('Monitoring stopped.');
+        addAlert('Monitoring stopped.');
       }
       setIsTogglingVideo(false); // Set back regardless of outcome for simplicity here
       return newIsMonitoring;
     });
+  }, [isTogglingVideo, addAlert]);
+
+  // Helper function to convert ArrayBuffer to Base64 string
+  const arrayBufferToBase64 = (buffer) => {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
   };
 
-  const toggleAudioMonitoring = async () => {
+  // WAV Encoding Function
+  const encodeWAV = (samples, sampleRate) => {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    // Helper function to write strings to DataView
+    const writeString = (view, offset, string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+
+    // RIFF identifier
+    writeString(view, 0, 'RIFF');
+    // RIFF chunk length
+    view.setUint32(4, 36 + samples.length * 2, true);
+    // RIFF type
+    writeString(view, 8, 'WAVE');
+    // format chunk identifier
+    writeString(view, 12, 'fmt ');
+    // format chunk length
+    view.setUint32(16, 16, true);
+    // sample format (raw)
+    view.setUint16(20, 1, true);
+    // channel count
+    const numChannels = 1;
+    view.setUint16(22, numChannels, true);
+    // sample rate
+    view.setUint32(24, sampleRate, true);
+    // byte rate (sample rate * block align)
+    view.setUint32(28, sampleRate * numChannels * 2, true); // 2 bytes per sample (16-bit)
+    // block align (channel count * bytes per sample)
+    view.setUint16(32, numChannels * 2, true); // 2 bytes per sample (16-bit)
+    // bits per sample
+    view.setUint16(34, 16, true);
+    // data chunk identifier
+    writeString(view, 36, 'data');
+    // data chunk length
+    view.setUint32(40, samples.length * 2, true);
+
+    // Write the PCM samples (16-bit)
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, samples[i])); // Clamp to -1 to 1
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    return buffer; // Return ArrayBuffer
+  };
+
+  const processAndSendAudioChunk = useCallback((audioBuffers, sampleRate) => {
+    try {
+      console.log('[AudioChunk] processAndSendAudioChunk called.');
+      
+      if (!audioBuffers || !Array.isArray(audioBuffers)) {
+        console.error('[AudioError] audioBuffers is invalid in processAndSendAudioChunk.', audioBuffers);
+        return;
+      }
+      if (audioBuffers.length === 0) {
+        console.warn('[AudioChunk] processAndSendAudioChunk called with empty audioBuffers. Skipping.');
+        return;
+      }
+
+      // 1. Concatenate buffers
+      let totalLength = 0;
+      audioBuffers.forEach(buffer => {
+        totalLength += buffer.length;
+      });
+      const concatenatedBuffer = new Float32Array(totalLength);
+      let offset = 0;
+      audioBuffers.forEach(buffer => {
+        concatenatedBuffer.set(buffer, offset);
+        offset += buffer.length;
+      });
+      console.log(`[AudioChunk] Concatenated buffer length: ${concatenatedBuffer.length}, Sample rate: ${sampleRate}`);
+
+      // 2. Convert to WAV (encodeWAV function)
+      const wavBuffer = encodeWAV(concatenatedBuffer, sampleRate);
+      console.log(`[AudioChunk] WAV buffer created, length: ${wavBuffer.byteLength}`);
+
+      // 3. Base64 Encode
+      const base64WAV = arrayBufferToBase64(wavBuffer);
+      console.log(`[AudioChunk] Base64 WAV data (first 100 chars): ${base64WAV.substring(0, 100)}`);
+      console.log(`[AudioChunk] Base64 WAV data length: ${base64WAV.length}`);
+
+      // 4. Send to backend (Sub-Task 2.3)
+      const clientTimestampUTC = new Date().toISOString();
+      const audioDataPayload = {
+        audio_chunk_base64: base64WAV,
+        sample_rate: sampleRate,
+        session_id: sessionId, // Assumes sessionId is available in this scope
+        client_timestamp_utc: clientTimestampUTC
+      };
+
+      axios.post('http://localhost:5000/api/analyze-audio', audioDataPayload)
+        .then(response => {
+          console.log('[AudioChunk] Successfully sent audio chunk to backend:', response.data);
+        })
+        .catch(error => {
+          console.error('[AudioChunk] Error sending audio chunk to backend:', error);
+          // let errorMsg = 'Failed to send audio chunk.'; // errorMsg is unused as setAudioStatusMessage is commented
+          // if (error.response) {
+          //   errorMsg = `Server error: ${error.response.data.message || error.response.statusText}`;
+          // } else if (error.request) {
+          //   errorMsg = 'No response from server. Check connection.';
+          // }
+        });
+    } catch (e) {
+      console.error('[AudioError] Error in processAndSendAudioChunk:', e);
+    }
+  }, [sessionId]);
+
+  // eslint-disable-next-line no-unused-vars
+  const toggleAudioMonitoring = useCallback(async () => {
     if (isTogglingAudio) return; // Prevent rapid clicks
     setIsTogglingAudio(true);
 
     if (!isAudioMonitoring) { // About to start audio monitoring
-      setAudioStatusMessage({ type: 'info', text: 'Starting audio monitoring...' });
+      addAlert('Audio monitoring started.');
       audioBufferRef.current = []; // Clear any previous buffers
       accumulatedAudioLengthRef.current = 0; // Reset accumulated length
       try {
@@ -272,17 +673,17 @@ function App() {
         scriptNode.connect(context.destination); // Necessary to make onaudioprocess fire.
 
         setIsAudioMonitoring(true);
-        setAudioStatusMessage({ type: 'success', text: 'Audio monitoring active.' });
+        addAlert('Audio monitoring started.');
         console.log('[AudioProto] Audio monitoring started successfully.');
 
       } catch (err) {
         console.error('[AudioProto] Error accessing microphone:', err);
         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          setAudioStatusMessage({ type: 'error', text: 'Microphone access denied by user. Please enable microphone permissions in your browser settings.' });
+          addAlert('Microphone access denied. Please enable microphone permissions in your browser settings.');
         } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-          setAudioStatusMessage({ type: 'error', text: 'No microphone found. Please connect a microphone and try again.' });
+          addAlert('No microphone found. Please connect a microphone and try again.');
         } else {
-          setAudioStatusMessage({ type: 'error', text: `Error accessing microphone: ${err.message}` });
+          addAlert(`Error accessing microphone: ${err.message}`);
         }
         // Ensure states are reset if setup fails
         setIsAudioMonitoring(false); 
@@ -298,7 +699,7 @@ function App() {
         setIsTogglingAudio(false);
       }
     } else { // About to stop audio monitoring
-      setAudioStatusMessage({ type: 'info', text: 'Stopping audio monitoring...' });
+      addAlert('Audio monitoring stopped.');
       if (scriptProcessorNodeRef.current && audioSourceNodeRef.current) {
         audioSourceNodeRef.current.disconnect(scriptProcessorNodeRef.current);
         scriptProcessorNodeRef.current.disconnect(); // Disconnect from context.destination
@@ -319,178 +720,53 @@ function App() {
       }
       
       setIsAudioMonitoring(false);
-      // addAlert('Audio monitoring stopped.'); // Replaced by audioStatusMessage
-      setAudioStatusMessage({ type: 'info', text: 'Audio monitoring stopped.' });
       console.log('[AudioProto] Audio monitoring stopped.');
       audioBufferRef.current = []; // Clear buffers
       accumulatedAudioLengthRef.current = 0; // Reset length
       setIsTogglingAudio(false);
     }
-  };
+  }, [isAudioMonitoring, isTogglingAudio, addAlert, processAndSendAudioChunk]);
 
-  // Helper function to convert ArrayBuffer to Base64 string
-  const arrayBufferToBase64 = (buffer) => {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-  };
-
-  // WAV Encoding Function
-  const encodeWAV = (samples, sampleRate) => {
-    const buffer = new ArrayBuffer(44 + samples.length * 2);
-    const view = new DataView(buffer);
-
-    // Helper function to write strings to DataView
-    const writeString = (view, offset, string) => {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
-      }
-    };
-
-    // RIFF identifier
-    writeString(view, 0, 'RIFF');
-    // RIFF chunk length
-    view.setUint32(4, 36 + samples.length * 2, true);
-    // RIFF type
-    writeString(view, 8, 'WAVE');
-    // format chunk identifier
-    writeString(view, 12, 'fmt ');
-    // format chunk length
-    view.setUint32(16, 16, true);
-    // sample format (raw)
-    view.setUint16(20, 1, true);
-    // channel count
-    const numChannels = 1;
-    view.setUint16(22, numChannels, true);
-    // sample rate
-    view.setUint32(24, sampleRate, true);
-    // byte rate (sample rate * block align)
-    view.setUint32(28, sampleRate * numChannels * 2, true); // 2 bytes per sample (16-bit)
-    // block align (channel count * bytes per sample)
-    view.setUint16(32, numChannels * 2, true); // 2 bytes per sample (16-bit)
-    // bits per sample
-    view.setUint16(34, 16, true);
-    // data chunk identifier
-    writeString(view, 36, 'data');
-    // data chunk length
-    view.setUint32(40, samples.length * 2, true);
-
-    // Write the PCM samples (16-bit)
-    let offset = 44;
-    for (let i = 0; i < samples.length; i++, offset += 2) {
-      const s = Math.max(-1, Math.min(1, samples[i])); // Clamp to -1 to 1
-      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-    }
-    return buffer; // Return ArrayBuffer
-  };
-
-  const processAndSendAudioChunk = (audioBuffers, sampleRate) => {
-    try {
-      console.log('[AudioChunk] processAndSendAudioChunk called.');
-      
-      if (!audioBuffers || !Array.isArray(audioBuffers)) {
-        console.error('[AudioError] audioBuffers is invalid in processAndSendAudioChunk.', audioBuffers);
-        return;
-      }
-      if (audioBuffers.length === 0) {
-        console.warn('[AudioChunk] processAndSendAudioChunk called with empty audioBuffers. Skipping.');
-        return;
-      }
-
-      // 1. Concatenate buffers
-      let totalLength = 0;
-      audioBuffers.forEach(buffer => {
-        totalLength += buffer.length;
-      });
-      const concatenatedBuffer = new Float32Array(totalLength);
-      let offset = 0;
-      audioBuffers.forEach(buffer => {
-        concatenatedBuffer.set(buffer, offset);
-        offset += buffer.length;
-      });
-      console.log(`[AudioChunk] Concatenated buffer length: ${concatenatedBuffer.length}, Sample rate: ${sampleRate}`);
-
-      // 2. Convert to WAV (encodeWAV function)
-      const wavBuffer = encodeWAV(concatenatedBuffer, sampleRate);
-      console.log(`[AudioChunk] WAV buffer created, length: ${wavBuffer.byteLength}`);
-
-      // 3. Base64 Encode
-      const base64WAV = arrayBufferToBase64(wavBuffer);
-      console.log(`[AudioChunk] Base64 WAV data (first 100 chars): ${base64WAV.substring(0, 100)}`);
-      console.log(`[AudioChunk] Base64 WAV data length: ${base64WAV.length}`);
-
-      // 4. Send to backend (Sub-Task 2.3)
-      const clientTimestampUTC = new Date().toISOString();
-      const audioDataPayload = {
-        audio_chunk_base64: base64WAV,
-        sample_rate: sampleRate,
-        session_id: sessionId, // Assumes sessionId is available in this scope
-        client_timestamp_utc: clientTimestampUTC
-      };
-
-      axios.post('http://localhost:5000/api/analyze-audio', audioDataPayload)
-        .then(response => {
-          console.log('[AudioChunk] Successfully sent audio chunk to backend:', response.data);
-          setAudioStatusMessage({ 
-            type: 'success', 
-            text: `Audio chunk (${(totalLength / sampleRate).toFixed(1)}s) sent. Server: ${response.data.message || 'Processed'}.` 
-          });
-        })
-        .catch(error => {
-          console.error('[AudioChunk] Error sending audio chunk to backend:', error);
-          let errorMsg = 'Failed to send audio chunk.';
-          if (error.response) {
-            errorMsg = `Server error: ${error.response.data.message || error.response.statusText}`;
-          } else if (error.request) {
-            errorMsg = 'No response from server. Check connection.';
-          }
-          setAudioStatusMessage({ 
-            type: 'error', 
-            text: `Error sending audio: ${errorMsg}` 
-          });
-        });
-    } catch (e) {
-      console.error('[AudioError] Error in processAndSendAudioChunk:', e);
-      setAudioStatusMessage({ 
-        type: 'error', 
-        text: `Critical error processing audio chunk: ${e.message}` 
-      });
-    }
-  };
-
-  const syncOfflineData = async () => {
+  const syncOfflineData = useCallback(async () => {
     if (offlineData.length === 0) {
       addAlert('No offline data to sync.');
       return;
     }
     setStatus('Syncing offline data...');
     let syncedCount = 0;
-    for (const record of offlineData) {
-      const formData = new FormData();
-      const blob = base64ToBlob(record.imageSrc.split(',')[1], 'image/jpeg');
-      formData.append('image', blob);
-      try {
-        // Assuming the same endpoint for sync, or a dedicated one could be made
-        await axios.post('http://localhost:5000/api/analyze-face', formData);
-        syncedCount++;
-      } catch (error) {
-        addAlert(`Failed to sync an offline record: ${error.message}`);
-        // Decide if to keep failed records or discard
-      }
+    const remainingData = [...offlineData]; // Create a copy to modify
+
+    for (let i = 0; i < offlineData.length; i++) {
+        const record = offlineData[i];
+        const formData = new FormData();
+        const blob = base64ToBlob(record.imageSrc.split(',')[1], 'image/jpeg');
+        formData.append('image', blob);
+        formData.append('session_id', sessionId); // Add session_id for offline sync too
+        // Add timestamp if your backend can use it for offline records
+        // formData.append('client_timestamp_utc', record.timestamp); 
+        try {
+            await axios.post('http://localhost:5000/api/analyze-face', formData);
+            syncedCount++;
+            // Remove successfully synced item from the copy
+            const originalIndex = remainingData.findIndex(item => item.timestamp === record.timestamp && item.imageSrc === record.imageSrc);
+            if (originalIndex > -1) {
+                remainingData.splice(originalIndex, 1);
+            }
+        } catch (error) {
+            addAlert(`Failed to sync an offline record: ${error.message}`);
+        }
     }
     setStatus(`Synced ${syncedCount} of ${offlineData.length} records.`);
-    setOfflineData(prev => prev.filter((_, i) => i >= syncedCount)); // Remove synced/attempted records
-    if (syncedCount === offlineData.length) {
-        setOfflineMode(false); // Go back online if all synced
+    setOfflineData(remainingData);
+    if (remainingData.length === 0) {
+        setOfflineMode(false);
         addAlert('All offline data synced. Resuming online mode.');
+    } else if (syncedCount > 0) {
+         addAlert(`${syncedCount} records synced. ${remainingData.length} records remain offline.`);
     } else {
-        addAlert('Some offline data failed to sync.');
+        addAlert('Offline data sync failed. Please try again later.');
     }
-  };
+  }, [offlineData, addAlert, sessionId, setStatus, setOfflineData, setOfflineMode]);
   
   useEffect(() => {
     let interval;
@@ -500,7 +776,7 @@ function App() {
     }
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMonitoring, offlineMode]); // Rerun if isMonitoring or offlineMode changes
+  }, [isMonitoring, offlineMode, sessionId]); // Added sessionId to captureAndAnalyze deps
   
   const fetchEvents = async () => {
     // if (!sessionId) return; // Removed this check, admin might not have a relevant session_id to filter by initially
@@ -586,377 +862,82 @@ function App() {
     console.log('[Auth] User logged out.');
   };
 
-  // Render Login/Register forms if not authenticated
-  if (!currentUser) {
-    return (
-      <Container className="mt-5">
-        <Row className="justify-content-center">
-          <Col md={6} lg={4}>
-            <h2 className="text-center mb-4">{showRegister ? 'Register' : 'Login'}</h2>
-            {authMessage.text && <Alert variant={authMessage.type || 'info'}>{authMessage.text}</Alert>}
-            <Form onSubmit={showRegister ? handleRegister : handleLogin}>
-              <Form.Group className="mb-3" controlId="formBasicEmail">
-                <Form.Label>Username</Form.Label>
-                <Form.Control 
-                  type="text" 
-                  placeholder="Enter username" 
-                  value={authUsername} 
-                  onChange={(e) => setAuthUsername(e.target.value)} 
-                  required 
-                />
-              </Form.Group>
+  const determineRedirectPath = () => {
+    if (!currentUser) return "/login"; // Or wherever you want unauthenticated users to go
+    if (currentUser.role === 'admin') return "/admin/dashboard"; // Admins go to dashboard
+    if (currentUser.role === 'student') return "/student/monitor"; // Students go to their monitoring page
+    return "/"; // Fallback
+  };
 
-              <Form.Group className="mb-3" controlId="formBasicPassword">
-                <Form.Label>Password</Form.Label>
-                <Form.Control 
-                  type="password" 
-                  placeholder="Password" 
-                  value={authPassword} 
-                  onChange={(e) => setAuthPassword(e.target.value)} 
-                  required 
-                />
-              </Form.Group>
-              <Button variant="primary" type="submit" className="w-100">
-                {showRegister ? 'Register' : 'Login'}
-              </Button>
-            </Form>
-            <Button 
-              variant="link" 
-              onClick={() => { 
-                setShowRegister(!showRegister); 
-                setAuthMessage({ type: '', text: '' }); 
-                setAuthUsername(''); 
-                setAuthPassword(''); 
-              }} 
-              className="mt-3 d-block text-center"
-            >
-              {showRegister ? 'Already have an account? Login' : 'Need an account? Register'}
-            </Button>
-          </Col>
-        </Row>
-      </Container>
-    );
-  }
-
-  // Main application UI (if authenticated)
   return (
-    <>
-      {/* MUI AppBar */}
+    <Router>
       <AppBar position="static">
-        <Container maxWidth="xl"> {/* or "lg", "md", "sm", "xs" or false to disable max-width */} 
-          <Toolbar disableGutters>
-            <Typography
-              variant="h6"
-              noWrap
-              component="a"
-              href="#"
-              sx={{ 
-                mr: 2, 
-                display: { xs: 'none', md: 'flex' },
-                fontFamily: 'monospace',
-                fontWeight: 700,
-                letterSpacing: '.1rem',
-                color: 'inherit',
-                textDecoration: 'none',
-              }}
-            >
-              AI Proctoring System
-            </Typography>
-
-            {/* Mobile menu icon might be needed here if more nav items are added */}
-            {/* For now, keeping it simple as original had few items */}
-            
-            <Box sx={{ flexGrow: 1, display: { xs: 'flex', md: 'none' } }}>
-              {/* Hamburger menu icon for mobile if needed */}
-            </Box>
-            <Typography
-              variant="h5"
-              noWrap
-              component="a"
-              href="#"
-              sx={{
-                mr: 2,
-                display: { xs: 'flex', md: 'none' },
-                flexGrow: 1,
-                fontFamily: 'monospace',
-                fontWeight: 700,
-                letterSpacing: '.1rem',
-                color: 'inherit',
-                textDecoration: 'none',
-              }}
-            >
-              AI Proctoring
-            </Typography>
-            
-            {/* Desktop Nav Items - ms-auto equivalent for MUI is Box with marginLeft: auto */}
-            <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' } }} /> {/* Spacer */} 
-            <Box sx={{ display: 'flex' }}>
-              {currentUser && (
-                <Typography sx={{ mr: 2, alignSelf: 'center' }}>
-                  Signed in as: {currentUser.username} ({currentUser.role})
-                </Typography>
-              )}
-              {currentUser && (
-                <Button color="inherit" onClick={handleLogout} variant="outlined">
-                  Logout
-                </Button>
-              )}
-            </Box>
-          </Toolbar>
-        </Container>
-      </AppBar>
-
-      {/* Use MUI Container for main content area */}
-      <Container component="main" sx={{ mt: 4, mb: 4 }}>
-        <Typography component="h1" variant="h4" align="center" gutterBottom>
-          AI Proctoring System
-        </Typography>
-        <Typography variant="subtitle1" align="center" color="text.secondary" paragraph>
-          Session ID: {sessionId}
-        </Typography>
-
-        {/* Tabs remain react-bootstrap for now, will be complex to change all at once */}
-        {/* Ensure BsNavbar is used if any Navbar remnants are from react-bootstrap */}
-        <BsTabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} id="proctoring-tabs" className="mb-3">
-          <BsTab eventKey="monitor" title="Monitoring">
-            <Row className="justify-content-center mb-3">
-              <Col md={8} lg={6}>
-                <Box className="position-relative border bg-light p-2" sx={{ minHeight: '380px' }}> {/* Using Box for styling wrapper */}
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    width="100%"
-                    height="auto"
-                    videoConstraints={{
-                      width: { ideal: 640 },
-                      height: { ideal: 480 },
-                      facingMode: "user"
-                    }}
-                    className="img-fluid"
-                  />
-                  {offlineMode && (
-                    <div className="position-absolute top-0 end-0 m-2 p-2 bg-warning text-dark rounded shadow-sm">
-                      <strong>OFFLINE MODE</strong>
-                    </div>
-                  )}
-                </Box>
-              </Col>
-            </Row>
-            
-            <Row className="justify-content-center mb-3">
-              <Col md={8} lg={6} className="d-flex flex-column align-items-center">
-                {currentUser && currentUser.role === 'student' && (
-                  <>
-                    <Button 
-                      onClick={toggleMonitoring} 
-                      variant="contained" 
-                      color={isMonitoring ? "error" : "success"}
-                      className="mb-2"
-                      disabled={isTogglingAudio || isTogglingVideo}
-                      sx={{ minWidth: '220px' }}
-                    >
-                      {isMonitoring ? 'Stop Video Monitoring' : 'Start Video Monitoring'}
-                    </Button>
-                    <Button 
-                      onClick={toggleAudioMonitoring} 
-                      variant="contained"
-                      color={isAudioMonitoring ? "error" : "primary"}
-                      disabled={isTogglingAudio}
-                      className="mb-2"
-                      sx={{ minWidth: '220px' }}
-                    >
-                      {isAudioMonitoring ? 'Stop Sound Monitoring' : 'Start Sound Monitoring'}
-                    </Button>
-                  </>
-                )}
-
-                {offlineMode && (
-                  <Button 
-                    variant="primary" 
-                    onClick={syncOfflineData}
-                    disabled={offlineData.length === 0}
-                    size="lg"
-                  >
-                    Sync Data ({offlineData.length})
+        <Toolbar>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            ExamGuard AI Proctor
+          </Typography>
+          {currentUser ? (
+            <>
+              <Typography variant="subtitle1" sx={{ mr: 2 }}>
+                Welcome, {currentUser.username} ({currentUser.role})
+              </Typography>
+              {currentUser.role === 'admin' && (
+                <>
+                  <Button color="inherit" component={RouterLink} to="/admin/dashboard">
+                    Dashboard
                   </Button>
-                )}
-              </Col>
-            </Row>
-            
-            <Row className="justify-content-center">
-              <Col md={8} lg={6}>
-                <Alert 
-                  severity={status.startsWith('Error') ? 'error' : (offlineMode ? 'warning' : 'info')} 
-                  className="mt-3 text-center"
-                  sx={{ fontSize: '1.1rem' }} // Increase font size
-                >
-                  <strong>Status:</strong> {status}
-                </Alert>
-                {audioStatusMessage && audioStatusMessage.text && 
-                  <Alert 
-                    severity={audioStatusMessage.type || 'info'} // MUI severity
-                    className="mt-2 text-center"
-                    sx={{ fontSize: '1.1rem' }} // Increase font size
-                  >
-                    <strong>Audio Status:</strong> {audioStatusMessage.text}
-                  </Alert>
-                }
-                
-                <div className="mt-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                  <Typography variant="h6" align="center" gutterBottom sx={{ mt: 2, fontSize: '1.2rem' }}> {/* Changed h5 to Typography */}
-                    Event Log:
-                  </Typography>
-                  {alerts.length === 0 && <Typography align="center" color="textSecondary">No events yet.</Typography>}
-                  {alerts.map((alert, index) => (
-                    <Alert 
-                      key={index} 
-                      severity="info" // Changed from variant="light"
-                      className="p-2 mb-2" 
-                      sx={{ fontSize: '0.95rem' }} // Adjust font size
-                    >
-                      <small><em>{alert.timestamp}</em>: {alert.message}</small>
-                    </Alert>
-                  ))}
-                </div>
-              </Col>
-            </Row>
-          </BsTab>
-          {currentUser && currentUser.role === 'admin' && (
-            <BsTab eventKey="events" title="Event History">
-              <Row className="mt-3">
-                <Col>
-                  <h4>All Event Logs</h4>
-                  <Table striped bordered hover responsive>
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Timestamp</th>
-                        <th>User</th>
-                        <th>Session ID</th>
-                        <th>Event Type</th>
-                        <th>Details</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {events.map((event, index) => (
-                        <tr key={event._id || index}>
-                          <td>{index + 1}</td>
-                          <td>{new Date(event.timestamp).toLocaleString()}</td>
-                          <td>{event.username}</td>
-                          <td>{event.session_id}</td>
-                          <td>{event.event_type}</td>
-                          <td>
-                            {typeof event.details === 'object' && event.details !== null ? (
-                              <ul style={{ paddingLeft: '15px', marginBottom: '0' }}>
-                                {Object.entries(event.details).map(([key, value]) => {
-                                  let displayValue = value;
-                                  if (key === 'peak_rms_dbfs' || key === 'average_rms_dbfs') {
-                                    displayValue = typeof value === 'number' ? value.toFixed(2) : value;
-                                  } else if (key === 'original_filepath' && typeof value === 'string') {
-                                    displayValue = value.substring(value.lastIndexOf('/') + 1);
-                                  } else if (value === true) {
-                                    displayValue = 'Yes';
-                                  } else if (value === false) {
-                                    displayValue = 'No';
-                                  }
-                                  const displayKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
-                                  return <li key={key}>{`${displayKey}: ${displayValue}`}</li>;
-                                })}
-                                {(event.event_type === 'loud_noise_detected' || event.event_type === 'audio_chunk_saved') && 
-                                 event.details && (event.details.original_filepath || event.details.filepath) && (
-                                  <li>
-                                    <Button 
-                                      variant="info" 
-                                      size="sm"
-                                      className='mt-1'
-                                      onClick={async () => {
-                                        const filename = event.details.original_filepath 
-                                                       ? event.details.original_filepath.substring(event.details.original_filepath.lastIndexOf('/') + 1)
-                                                       : event.details.filepath.substring(event.details.filepath.lastIndexOf('/') + 1);
-                                        const token = localStorage.getItem('proctoring_token');
-                                        if (!token) {
-                                          console.error('No access token found for playing audio. Key used: proctoring_token');
-                                          addAlert('Error: Not authorized to play audio. Please log in again.');
-                                          return;
-                                        }
-                                        try {
-                                          console.log(`[AudioPlayback] Attempting to play: ${filename}`);
-                                          const response = await fetch(`/api/audio_files/${filename}`, {
-                                            headers: {
-                                              'Authorization': `Bearer ${token}`
-                                            }
-                                          });
-
-                                          console.log('[AudioPlayback] Response status:', response.status);
-                                          console.log('[AudioPlayback] Response headers:');
-                                          response.headers.forEach((value, name) => {
-                                            console.log(`  ${name}: ${value}`);
-                                          });
-
-                                          if (!response.ok) {
-                                            let errorText = `Failed to fetch audio: ${response.status}`;
-                                            try {
-                                                const errorData = await response.json(); // Try to parse as JSON first
-                                                errorText = errorData.msg || JSON.stringify(errorData);
-                                            } catch (e) {
-                                                // If not JSON, try to get text
-                                                errorText = await response.text();
-                                            }
-                                            console.error('[AudioPlayback] Fetch error response text:', errorText);
-                                            throw new Error(`Server error: ${errorText}`);
-                                          }
-                                          const originalBlob = await response.blob();
-                                          console.log('[AudioPlayback] Original blob size:', originalBlob.size);
-                                          console.log('[AudioPlayback] Original blob type:', originalBlob.type);
-                                          
-                                          // Ensure the blob has the correct MIME type for WAV audio
-                                          const audioBlob = new Blob([originalBlob], { type: 'audio/wav' });
-                                          console.log('[AudioPlayback] New audioBlob size:', audioBlob.size);
-                                          console.log('[AudioPlayback] New audioBlob type:', audioBlob.type);
-
-                                          if (originalBlob.size === 0) {
-                                            throw new Error("Received empty audio file from server.");
-                                          }
-                                          if (originalBlob.type && !originalBlob.type.startsWith('audio/')) {
-                                            // If the server sends a content-type, and it's not audio, that's a problem.
-                                            // However, if it's empty, we proceed and hope for the best with 'audio/wav'.
-                                            console.warn(`[AudioPlayback] Suspicious content type from server: ${originalBlob.type}. Proceeding with explicit 'audio/wav'.`);
-                                          }
-
-                                          const audioUrl = URL.createObjectURL(audioBlob);
-                                          const audio = new Audio(audioUrl);
-                                          audio.play()
-                                            .then(() => console.log(`[AudioPlayback] Playing ${filename}`))
-                                            .catch(err => {
-                                                console.error('[AudioPlayback] Error playing audio:', err);
-                                                addAlert(`Error playing audio ${filename}: ${err.message}`);
-                                            });
-                                        } catch (error) {
-                                          console.error('[AudioPlayback] Error fetching or playing audio:', error);
-                                          addAlert(`Failed to play audio ${filename}: ${error.message}`);
-                                        }
-                                      }}
-                                    >
-                                      Play Audio
-                                    </Button>
-                                  </li>
-                                )}
-                              </ul>
-                            ) : event.details}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </Table>
-                </Col>
-              </Row>
-            </BsTab>
+                  {/* NEW: Admin Alert Log Link */}
+                  <Button color="inherit" component={RouterLink} to="/admin/alerts">
+                    Alert Log
+                  </Button>
+                </>
+              )}
+              <Button color="inherit" onClick={handleLogout}>Logout</Button>
+            </>
+          ) : (
+            <>
+              {/* AuthPage handles login/register links */}
+            </>
           )}
-        </BsTabs>
-      </Container>
-    </>
+        </Toolbar>
+      </AppBar>
+      
+      <MainContentComponent
+        currentUser={currentUser}
+        determineRedirectPath={determineRedirectPath}
+        // AuthPage props
+        showRegister={showRegister}
+        authMessage={authMessage}
+        handleRegister={handleRegister}
+        handleLogin={handleLogin}
+        authUsername={authUsername}
+        setAuthUsername={setAuthUsername}
+        authPassword={authPassword}
+        setAuthPassword={setAuthPassword}
+        setShowRegister={setShowRegister}
+        setAuthMessage={setAuthMessage} // Pass setAuthMessage
+        // StudentMonitorPage props
+        sessionId={sessionId}
+        isMonitoring={isMonitoring}
+        toggleMonitoring={toggleMonitoring}
+        isTogglingVideo={isTogglingVideo}
+        toggleAudioMonitoring={toggleAudioMonitoring}
+        isAudioMonitoring={isAudioMonitoring}
+        isTogglingAudio={isTogglingAudio}
+        syncOfflineData={syncOfflineData}
+        offlineMode={offlineMode}
+        offlineData={offlineData}
+        webcamRef={webcamRef}
+        status={status}
+        alerts={alerts}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        fetchEvents={fetchEvents}
+        events={events}
+      />
+
+    </Router>
   );
 }
 
-export default App; 
+export default App;
