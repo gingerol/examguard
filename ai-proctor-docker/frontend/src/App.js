@@ -607,6 +607,7 @@ function App() {
     setIsTogglingAudio(true);
 
     if (!isAudioMonitoring) { // About to start audio monitoring
+      setStatus('Starting audio monitoring...');
       addAlert('Audio monitoring started.');
       audioBufferRef.current = []; // Clear any previous buffers
       accumulatedAudioLengthRef.current = 0; // Reset accumulated length
@@ -675,15 +676,19 @@ function App() {
         setIsAudioMonitoring(true);
         addAlert('Audio monitoring started.');
         console.log('[AudioProto] Audio monitoring started successfully.');
+        setStatus('Audio monitoring active');
 
       } catch (err) {
         console.error('[AudioProto] Error accessing microphone:', err);
         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
           addAlert('Microphone access denied. Please enable microphone permissions in your browser settings.');
+          setStatus('Audio error: Microphone access denied.');
         } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
           addAlert('No microphone found. Please connect a microphone and try again.');
+          setStatus('Audio error: No microphone found.');
         } else {
           addAlert(`Error accessing microphone: ${err.message}`);
+          setStatus(`Audio error: ${err.message}`);
         }
         // Ensure states are reset if setup fails
         setIsAudioMonitoring(false); 
@@ -699,6 +704,7 @@ function App() {
         setIsTogglingAudio(false);
       }
     } else { // About to stop audio monitoring
+      setStatus('Stopping audio monitoring...');
       addAlert('Audio monitoring stopped.');
       if (scriptProcessorNodeRef.current && audioSourceNodeRef.current) {
         audioSourceNodeRef.current.disconnect(scriptProcessorNodeRef.current);
@@ -723,9 +729,10 @@ function App() {
       console.log('[AudioProto] Audio monitoring stopped.');
       audioBufferRef.current = []; // Clear buffers
       accumulatedAudioLengthRef.current = 0; // Reset length
+      setStatus(isMonitoring ? 'Video monitoring active' : 'Ready');
       setIsTogglingAudio(false);
     }
-  }, [isAudioMonitoring, isTogglingAudio, addAlert, processAndSendAudioChunk]);
+  }, [isAudioMonitoring, isTogglingAudio, addAlert, processAndSendAudioChunk, setStatus, isMonitoring]);
 
   const syncOfflineData = useCallback(async () => {
     if (offlineData.length === 0) {
