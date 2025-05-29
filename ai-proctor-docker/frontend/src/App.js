@@ -292,7 +292,18 @@ const MainContentComponent = ({
 
 function App() {
   const webcamRef = useRef(null);
-  const [isMonitoring, setIsMonitoring] = useState(false);
+
+  // Attempt to load state from sessionStorage, otherwise use defaults
+  const [sessionId, setSessionId] = useState(() => {
+    const storedSessionId = sessionStorage.getItem('proctoring_sessionId');
+    return storedSessionId || `session_${new Date().getTime()}`;
+  });
+
+  const [isMonitoring, setIsMonitoring] = useState(() => {
+    const storedIsMonitoring = sessionStorage.getItem('proctoring_isMonitoring');
+    return storedIsMonitoring ? JSON.parse(storedIsMonitoring) : false;
+  });
+
   // eslint-disable-next-line no-unused-vars
   const [status, setStatus] = useState('Ready');
   // eslint-disable-next-line no-unused-vars
@@ -300,13 +311,14 @@ function App() {
   const [offlineMode, setOfflineMode] = useState(false);
   const [isTogglingVideo, setIsTogglingVideo] = useState(false); // For video button
   const [offlineData, setOfflineData] = useState([]);
-  const [sessionId] = useState(`session_${new Date().getTime()}`);
-  // eslint-disable-next-line no-unused-vars
   const [events, setEvents] = useState([]);
   const [activeTab, setActiveTab] = useState('monitor');
 
   // Audio state
-  const [isAudioMonitoring, setIsAudioMonitoring] = useState(false);
+  const [isAudioMonitoring, setIsAudioMonitoring] = useState(() => {
+    const storedIsAudioMonitoring = sessionStorage.getItem('proctoring_isAudioMonitoring');
+    return storedIsAudioMonitoring ? JSON.parse(storedIsAudioMonitoring) : false;
+  });
   // const [audioStatusMessage, setAudioStatusMessage] = useState({ type: 'info', text: 'Audio monitoring ready.' }); // Unused
   const [isTogglingAudio, setIsTogglingAudio] = useState(false); // For disabling button during state changes
   const audioStreamRef = useRef(null); // To store MediaStream
@@ -323,6 +335,23 @@ function App() {
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authMessage, setAuthMessage] = useState({ type: '', text: '' });
+
+  // Effect to save sessionId to sessionStorage whenever it changes
+  useEffect(() => {
+    if (sessionId) { // Ensure sessionId is not null/undefined before storing
+      sessionStorage.setItem('proctoring_sessionId', sessionId);
+    }
+  }, [sessionId]);
+
+  // Effect to save isMonitoring to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('proctoring_isMonitoring', JSON.stringify(isMonitoring));
+  }, [isMonitoring]);
+
+  // Effect to save isAudioMonitoring to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('proctoring_isAudioMonitoring', JSON.stringify(isAudioMonitoring));
+  }, [isAudioMonitoring]);
 
   // Effect to load user from localStorage on initial render
   useEffect(() => {
