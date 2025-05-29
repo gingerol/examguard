@@ -1,24 +1,325 @@
-import React, { useState, useRef, useEffect } from 'react';
-import Webcam from 'react-webcam';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate, Link as RouterLink } from 'react-router-dom';
+import Webcam from 'react-webcam'; // Unused -> // UNCOMMENTED
 import axios from 'axios';
-import { Container, Row, Col, Button, Alert, Tab, Tabs, Table, Form, Nav, Navbar } from 'react-bootstrap';
-// Ensure 'bootstrap/dist/css/bootstrap.min.css' is imported in index.js or here
+// import { Container, Row, Col, Button, Alert, Tab, Tabs, Table, Form, Nav, Navbar } from 'react-bootstrap'; // Old imports
+
+// MUI Imports
+// ThemeProvider, createTheme, CssBaseline are in index.js
+import AppBar from '@mui/material/AppBar';
+import Toolbar from '@mui/material/Toolbar';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button'; // MUI Button
+import Container from '@mui/material/Container'; // MUI Container
+// import Grid from '@mui/material/Grid'; // Will be added when used
+import Alert from '@mui/material/Alert'; // MUI Alert - to be used later
+// import Tabs from '@mui/material/Tabs'; // Unused MUI Tabs
+// import Tab from '@mui/material/Tab'; // Unused MUI Tab
+import Box from '@mui/material/Box';
+import Paper from '@mui/material/Paper';
+import TextField from '@mui/material/TextField';
+import Grid from '@mui/material/Grid';
+import MuiLink from '@mui/material/Link';
+// Table components will be imported later if needed for the event history table
+// Form components will be imported later if needed for login/register
+
+// Keep react-bootstrap components that are still in use, or alias them if names conflict and MUI isn't replacing them yet.
+// import { Nav, Navbar as BsNavbar } from 'react-bootstrap'; // Nav and BsNavbar not currently used after AppBar introduction
+import { Row, Col } from 'react-bootstrap'; // Table, Form, Tabs, Tab from react-bootstrap are still used for now. Re-evaluating.
+// import { Table, Form } from 'react-bootstrap'; // Table and Form are not used at the top level of App.js, Row/Col are. Re-evaluating.
+import { Tabs as BsTabs, Tab as BsTab } from 'react-bootstrap'; // Explicitly alias react-bootstrap Tabs/Tab
+
+// Import the new AdminDashboard component
+import AdminDashboard from './components/AdminDashboard/AdminDashboard';
+// NEW: Import the AdminAlertLog component
+import AdminAlertLog from './components/AdminAlertLog/AdminAlertLog';
+
+/* eslint-disable jsx-a11y/media-has-caption */
+
+// Define StableWebcam wrapper
+const StableWebcam = React.memo(React.forwardRef((props, ref) => {
+  return <Webcam {...props} ref={ref} />;
+}));
+
+const VIDEO_CONSTRAINTS = { // Defined as a constant
+  width: 1280,
+  height: 720,
+  facingMode: "user"
+};
+
+// NEW: AuthPage Component
+const AuthPage = ({ 
+  showRegister, 
+  authMessage, 
+  handleRegister, 
+  handleLogin, 
+  authUsername, 
+  setAuthUsername, 
+  authPassword, 
+  setAuthPassword, 
+  setShowRegister, 
+  setAuthMessage // Added setAuthMessage to clear on toggle
+}) => {
+  return (
+    <Container component="main" maxWidth="xs" sx={{ mt: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <Paper elevation={3} sx={{ padding: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+        <Typography component="h1" variant="h5" color="primary">
+          {showRegister ? 'Register' : 'Login'}
+        </Typography>
+        {authMessage.text && (
+          <Alert severity={authMessage.type || 'info'} sx={{ width: '100%', mt: 2, mb: 1 }}>
+            {authMessage.text}
+          </Alert>
+        )}
+        <Box component="form" onSubmit={showRegister ? handleRegister : handleLogin} noValidate sx={{ mt: 1, width: '100%' }}>
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="username"
+            label="Username"
+            name="username"
+            autoComplete="username"
+            autoFocus
+            value={authUsername}
+            onChange={(e) => setAuthUsername(e.target.value)}
+          />
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="password"
+            label="Password"
+            type="password"
+            id="password"
+            autoComplete="current-password"
+            value={authPassword}
+            onChange={(e) => setAuthPassword(e.target.value)}
+          />
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            sx={{ mt: 3, mb: 2 }}
+          >
+            {showRegister ? 'Register' : 'Sign In'}
+          </Button>
+          <Grid container justifyContent="flex-end">
+            <Grid item>
+              <MuiLink href="#" variant="body2" onClick={() => { setShowRegister(!showRegister); setAuthMessage({ type: '', text: '' }); }}>
+                {showRegister ? "Already have an account? Sign in" : "Don't have an account? Sign Up"}
+              </MuiLink>
+            </Grid>
+          </Grid>
+        </Box>
+      </Paper>
+    </Container>
+  );
+};
+
+// NEW: StudentMonitorPage Component
+const StudentMonitorPage = ({
+  sessionId,
+  isMonitoring,
+  toggleMonitoring,
+  isTogglingVideo,
+  toggleAudioMonitoring,
+  isAudioMonitoring,
+  isTogglingAudio, // Added this prop
+  syncOfflineData,
+  offlineMode,
+  offlineData,
+  webcamRef,
+  status,
+  alerts,
+  activeTab,
+  setActiveTab,
+  fetchEvents,
+  events
+}) => {
+  return (
+    <Container maxWidth="lg" sx={{ mt: 2, mb: 2 }}>
+      <Typography variant="h4" component="h1" gutterBottom color="primary" sx={{ textAlign: 'center', mb:3 }}>
+        AI Proctoring Session: {sessionId}
+      </Typography>
+      <Row className="mb-3">
+        <Col>
+          <Button 
+            variant="contained" 
+            onClick={toggleMonitoring} 
+            disabled={isTogglingVideo}
+            color={isMonitoring ? "error" : "success"}
+            sx={{ mr: 1 }}
+          >
+            {isMonitoring ? 'Stop Video Monitoring' : 'Start Video Monitoring'}
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={toggleAudioMonitoring} 
+            disabled={isTogglingAudio}
+            color={isAudioMonitoring ? "error" : "success"}
+          >
+            {isAudioMonitoring ? 'Stop Audio Monitoring' : 'Start Audio Monitoring'}
+          </Button>
+        </Col>
+        <Col xs="auto">
+          <Button variant="outlined" onClick={syncOfflineData} disabled={!offlineMode || offlineData.length === 0}>
+            Sync Offline Data ({offlineData.length})
+          </Button>
+        </Col>
+      </Row>
+      <Row className="mb-3">
+        <Col md={8}>
+          <Paper elevation={2} sx={{ p:2, position: 'relative', overflow: 'hidden' }}>
+            {isMonitoring ? (
+              <StableWebcam
+                ref={webcamRef}
+                audio={false}
+                screenshotFormat="image/jpeg"
+                width="100%"
+                height="auto"
+                videoConstraints={VIDEO_CONSTRAINTS}
+                mirrored={true}
+              />
+            ) : (
+              <Box sx={{ height: 300, backgroundColor: 'grey.200', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px' }}>
+                <Typography variant="h6" color="textSecondary">Video Monitoring Off</Typography>
+              </Box>
+            )}
+            <Typography variant="caption" sx={{ position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.5)', color: 'white', p:0.5, borderRadius:1 }}>
+              Status: {status}
+            </Typography>
+          </Paper>
+        </Col>
+        <Col md={4}>
+          <Paper elevation={2} sx={{ p:2, height: '100%' }}>
+            <Typography variant="h6" gutterBottom>Event Log</Typography>
+            <BsTabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} id="event-log-tabs" className="mb-3">
+              <BsTab eventKey="monitor" title="Session Alerts">
+                <Box sx={{ maxHeight: 250, overflowY: 'auto' }}>
+                  {alerts.length > 0 ? (
+                    alerts.map((alert, index) => (
+                      <Alert severity="warning" key={index} sx={{ mb: 1 }}>{alert.timestamp} - {alert.message}</Alert>
+                    ))
+                  ) : <Typography>No alerts yet.</Typography>}
+                </Box>
+              </BsTab>
+              <BsTab eventKey="history" title="Full History">
+                <Button onClick={fetchEvents} size="small" sx={{mb:1}}>Refresh History</Button>
+                <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
+                  {events.length > 0 ? events.map(e => (
+                    <Paper key={e._id} elevation={1} sx={{p:1, mb:1, fontSize:'0.8rem'}}>
+                      {new Date(e.timestamp).toLocaleString()}: {e.event_type}
+                      {e.details && typeof e.details === 'object' && (
+                        <pre style={{fontSize:'0.7rem', whiteSpace:'pre-wrap', wordBreak:'break-all'}}>
+                          {JSON.stringify(e.details, null, 2)}
+                        </pre>
+                      )}
+                    </Paper>
+                  )) : <Typography>No history fetched.</Typography>}
+                </Box>
+              </BsTab>
+            </BsTabs>
+          </Paper>
+        </Col>
+      </Row>
+    </Container>
+  );
+};
+
+// NEW: MainContentComponent (defined outside App)
+const MainContentComponent = ({
+  currentUser,
+  determineRedirectPath,
+  // Props for AuthPage
+  showRegister, authMessage, handleRegister, handleLogin, authUsername, setAuthUsername, authPassword, setAuthPassword, setShowRegister, setAuthMessage, // Added setAuthMessage
+  // Props for StudentMonitorPage
+  sessionId, isMonitoring, toggleMonitoring, isTogglingVideo, toggleAudioMonitoring, isAudioMonitoring, isTogglingAudio, syncOfflineData, offlineMode, offlineData, webcamRef, status, alerts, activeTab, setActiveTab, fetchEvents, events
+}) => {
+  if (!currentUser) {
+    return (
+      <AuthPage
+        showRegister={showRegister}
+        authMessage={authMessage}
+        handleRegister={handleRegister}
+        handleLogin={handleLogin}
+        authUsername={authUsername}
+        setAuthUsername={setAuthUsername}
+        authPassword={authPassword}
+        setAuthPassword={setAuthPassword}
+        setShowRegister={setShowRegister}
+        setAuthMessage={setAuthMessage} // Pass setAuthMessage
+      />
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to={determineRedirectPath()} replace />} />
+      {currentUser.role === 'student' && (
+        <Route path="/student/monitor" element={
+          <StudentMonitorPage
+            sessionId={sessionId}
+            isMonitoring={isMonitoring}
+            toggleMonitoring={toggleMonitoring}
+            isTogglingVideo={isTogglingVideo}
+            toggleAudioMonitoring={toggleAudioMonitoring}
+            isAudioMonitoring={isAudioMonitoring}
+            isTogglingAudio={isTogglingAudio}
+            syncOfflineData={syncOfflineData}
+            offlineMode={offlineMode}
+            offlineData={offlineData}
+            webcamRef={webcamRef}
+            status={status}
+            alerts={alerts}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            fetchEvents={fetchEvents}
+            events={events}
+          />
+        }/>
+      )}
+      {currentUser.role === 'admin' && (
+        <>
+          <Route path="/admin/dashboard" element={<AdminDashboard currentUser={currentUser} />} />
+          <Route path="/admin/alerts" element={<AdminAlertLog currentUser={currentUser} />} />
+        </>
+      )}
+      <Route path="*" element={<Navigate to={determineRedirectPath()} replace />} />
+    </Routes>
+  );
+};
 
 function App() {
   const webcamRef = useRef(null);
   const [isMonitoring, setIsMonitoring] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [status, setStatus] = useState('Ready');
+  // eslint-disable-next-line no-unused-vars
   const [alerts, setAlerts] = useState([]);
   const [offlineMode, setOfflineMode] = useState(false);
+  const [isTogglingVideo, setIsTogglingVideo] = useState(false); // For video button
   const [offlineData, setOfflineData] = useState([]);
-  const [sessionId, setSessionId] = useState(`session_${new Date().getTime()}`);
+  const [sessionId] = useState(`session_${new Date().getTime()}`);
+  // eslint-disable-next-line no-unused-vars
   const [events, setEvents] = useState([]);
   const [activeTab, setActiveTab] = useState('monitor');
 
+  // Audio state
+  const [isAudioMonitoring, setIsAudioMonitoring] = useState(false);
+  // const [audioStatusMessage, setAudioStatusMessage] = useState({ type: 'info', text: 'Audio monitoring ready.' }); // Unused
+  const [isTogglingAudio, setIsTogglingAudio] = useState(false); // For disabling button during state changes
+  const audioStreamRef = useRef(null); // To store MediaStream
+  const audioContextRef = useRef(null); // To store AudioContext
+  const scriptProcessorNodeRef = useRef(null); // To store ScriptProcessorNode
+  const audioSourceNodeRef = useRef(null); // To store MediaStreamAudioSourceNode
+  const audioBufferRef = useRef([]); // To store Float32Array audio chunks
+  const accumulatedAudioLengthRef = useRef(0); // To store total accumulated samples
+  const TARGET_AUDIO_CHUNK_DURATION_SECONDS = 5; // Target duration for each chunk
+
   // Auth state
   const [currentUser, setCurrentUser] = useState(null); // Will store { token, username, role }
-  const [showLogin, setShowLogin] = useState(true); // Show login form by default if not authenticated
-  const [showRegister, setShowRegister] = useState(false); // Controls visibility of registration form
+  const [showRegister, setShowRegister] = useState(false); // Controls visibility of registration form - RESTORED
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authMessage, setAuthMessage] = useState({ type: '', text: '' });
@@ -41,7 +342,7 @@ function App() {
 
   // Setup Axios interceptor to include JWT token in requests
   useEffect(() => {
-    const interceptor = axios.interceptors.request.use(
+    const requestInterceptor = axios.interceptors.request.use(
       config => {
         const token = localStorage.getItem('proctoring_token');
         if (token) {
@@ -51,11 +352,36 @@ function App() {
       },
       error => Promise.reject(error)
     );
-    // Clean up the interceptor when the component unmounts
+
+    // Setup Axios response interceptor to handle 401 errors (token expiry)
+    const responseInterceptor = axios.interceptors.response.use(
+      response => response, // Pass through successful responses
+      error => {
+        if (error.response && error.response.status === 401) {
+          // Check if the original request was NOT to the login endpoint
+          // to prevent a loop if the login itself fails with 401
+          if (error.config.url !== 'http://localhost:5000/api/auth/login') {
+            console.warn('[AxiosAuth] Received 401 Unauthorized for URL:', error.config.url, 'Logging out.');
+            // Use a more specific message for token expiry
+            setAuthMessage({ type: 'warning', text: 'Your session has expired. Please log in again.' });
+            handleLogout(); // This will clear currentUser and localStorage
+          } else {
+            // If it was the login endpoint, don't force logout, let login fail normally
+            console.log('[AxiosAuth] 401 from login endpoint, not forcing logout.');
+          }
+        }
+        return Promise.reject(error); // Important to reject the error so individual .catch() blocks can still handle it
+      }
+    );
+
+    // Clean up the interceptors when the component unmounts
     return () => {
-      axios.interceptors.request.eject(interceptor);
+      axios.interceptors.request.eject(requestInterceptor);
+      axios.interceptors.response.eject(responseInterceptor);
     };
-  }, []); // Empty dependency array, so it runs once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // currentUser removed from deps to prevent re-running interceptor setup on logout/login
+           // handleLogout is memoized by React if it were a useCallback, but here it's fine.
 
   const base64ToBlob = (base64, mimeType) => {
     const byteCharacters = atob(base64);
@@ -72,19 +398,28 @@ function App() {
     return new Blob(byteArrays, { type: mimeType });
   };
 
-  const addAlert = (message) => {
+  const addAlert = useCallback((message) => {
     const timestamp = new Date().toLocaleTimeString();
     setAlerts(prev => [...prev, { timestamp, message }].slice(-5)); // Keep last 5 alerts
-  };
+  }, []);
 
-  const captureAndAnalyze = async () => {
+  const captureAndAnalyze = useCallback(async () => {
     if (!webcamRef.current) return;
     
     const imageSrc = webcamRef.current.getScreenshot();
-    if (!imageSrc) return;
+    if (!imageSrc) {
+      console.log("[Debug] captureAndAnalyze: imageSrc is null or empty.");
+      return;
+    }
+    console.log("[Debug] captureAndAnalyze: imageSrc length:", imageSrc.length, "starts with:", imageSrc.substring(0, 30));
     
     const base64Data = imageSrc.split(',')[1];
+    if (!base64Data) {
+      console.log("[Debug] captureAndAnalyze: base64Data is null or empty after split.");
+      return;
+    }
     const blob = base64ToBlob(base64Data, 'image/jpeg');
+    console.log("[Debug] captureAndAnalyze: blob object:", blob);
     
     const formData = new FormData();
     formData.append('image', blob);
@@ -123,47 +458,315 @@ function App() {
         addAlert('Switched to offline mode due to connection issues.');
       }
     }
-  };
+  }, [sessionId, offlineMode, addAlert]);
   
-  const toggleMonitoring = () => {
-    setIsMonitoring(!isMonitoring);
-    if (!isMonitoring) { // About to start
-      setStatus('Starting monitoring...');
-      setAlerts([]); // Clear previous alerts
-    } else { // About to stop
-      setStatus('Monitoring stopped.');
+  // eslint-disable-next-line no-unused-vars
+  const toggleMonitoring = useCallback(() => {
+    if (isTogglingVideo) return;
+    setIsTogglingVideo(true);
+
+    setIsMonitoring(prevIsMonitoring => {
+      const newIsMonitoring = !prevIsMonitoring;
+      if (newIsMonitoring) { // About to start
+        setStatus('Starting monitoring...');
+        addAlert('Monitoring started.');
+      } else { // About to stop
+        setStatus('Monitoring stopped.');
+        addAlert('Monitoring stopped.');
+      }
+      setIsTogglingVideo(false); // Set back regardless of outcome for simplicity here
+      return newIsMonitoring;
+    });
+  }, [isTogglingVideo, addAlert]);
+
+  // Helper function to convert ArrayBuffer to Base64 string
+  const arrayBufferToBase64 = (buffer) => {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
     }
+    return window.btoa(binary);
   };
-  
-  const syncOfflineData = async () => {
+
+  // WAV Encoding Function
+  const encodeWAV = (samples, sampleRate) => {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    // Helper function to write strings to DataView
+    const writeString = (view, offset, string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+
+    // RIFF identifier
+    writeString(view, 0, 'RIFF');
+    // RIFF chunk length
+    view.setUint32(4, 36 + samples.length * 2, true);
+    // RIFF type
+    writeString(view, 8, 'WAVE');
+    // format chunk identifier
+    writeString(view, 12, 'fmt ');
+    // format chunk length
+    view.setUint32(16, 16, true);
+    // sample format (raw)
+    view.setUint16(20, 1, true);
+    // channel count
+    const numChannels = 1;
+    view.setUint16(22, numChannels, true);
+    // sample rate
+    view.setUint32(24, sampleRate, true);
+    // byte rate (sample rate * block align)
+    view.setUint32(28, sampleRate * numChannels * 2, true); // 2 bytes per sample (16-bit)
+    // block align (channel count * bytes per sample)
+    view.setUint16(32, numChannels * 2, true); // 2 bytes per sample (16-bit)
+    // bits per sample
+    view.setUint16(34, 16, true);
+    // data chunk identifier
+    writeString(view, 36, 'data');
+    // data chunk length
+    view.setUint32(40, samples.length * 2, true);
+
+    // Write the PCM samples (16-bit)
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, samples[i])); // Clamp to -1 to 1
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    return buffer; // Return ArrayBuffer
+  };
+
+  const processAndSendAudioChunk = useCallback((audioBuffers, sampleRate) => {
+    try {
+      console.log('[AudioChunk] processAndSendAudioChunk called.');
+      
+      if (!audioBuffers || !Array.isArray(audioBuffers)) {
+        console.error('[AudioError] audioBuffers is invalid in processAndSendAudioChunk.', audioBuffers);
+        return;
+      }
+      if (audioBuffers.length === 0) {
+        console.warn('[AudioChunk] processAndSendAudioChunk called with empty audioBuffers. Skipping.');
+        return;
+      }
+
+      // 1. Concatenate buffers
+      let totalLength = 0;
+      audioBuffers.forEach(buffer => {
+        totalLength += buffer.length;
+      });
+      const concatenatedBuffer = new Float32Array(totalLength);
+      let offset = 0;
+      audioBuffers.forEach(buffer => {
+        concatenatedBuffer.set(buffer, offset);
+        offset += buffer.length;
+      });
+      console.log(`[AudioChunk] Concatenated buffer length: ${concatenatedBuffer.length}, Sample rate: ${sampleRate}`);
+
+      // 2. Convert to WAV (encodeWAV function)
+      const wavBuffer = encodeWAV(concatenatedBuffer, sampleRate);
+      console.log(`[AudioChunk] WAV buffer created, length: ${wavBuffer.byteLength}`);
+
+      // 3. Base64 Encode
+      const base64WAV = arrayBufferToBase64(wavBuffer);
+      console.log(`[AudioChunk] Base64 WAV data (first 100 chars): ${base64WAV.substring(0, 100)}`);
+      console.log(`[AudioChunk] Base64 WAV data length: ${base64WAV.length}`);
+
+      // 4. Send to backend (Sub-Task 2.3)
+      const clientTimestampUTC = new Date().toISOString();
+      const audioDataPayload = {
+        audio_chunk_base64: base64WAV,
+        sample_rate: sampleRate,
+        session_id: sessionId, // Assumes sessionId is available in this scope
+        client_timestamp_utc: clientTimestampUTC
+      };
+
+      axios.post('http://localhost:5000/api/analyze-audio', audioDataPayload)
+        .then(response => {
+          console.log('[AudioChunk] Successfully sent audio chunk to backend:', response.data);
+        })
+        .catch(error => {
+          console.error('[AudioChunk] Error sending audio chunk to backend:', error);
+          // let errorMsg = 'Failed to send audio chunk.'; // errorMsg is unused as setAudioStatusMessage is commented
+          // if (error.response) {
+          //   errorMsg = `Server error: ${error.response.data.message || error.response.statusText}`;
+          // } else if (error.request) {
+          //   errorMsg = 'No response from server. Check connection.';
+          // }
+        });
+    } catch (e) {
+      console.error('[AudioError] Error in processAndSendAudioChunk:', e);
+    }
+  }, [sessionId]);
+
+  // eslint-disable-next-line no-unused-vars
+  const toggleAudioMonitoring = useCallback(async () => {
+    if (isTogglingAudio) return; // Prevent rapid clicks
+    setIsTogglingAudio(true);
+
+    if (!isAudioMonitoring) { // About to start audio monitoring
+      addAlert('Audio monitoring started.');
+      audioBufferRef.current = []; // Clear any previous buffers
+      accumulatedAudioLengthRef.current = 0; // Reset accumulated length
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioStreamRef.current = stream;
+        
+        const context = new (window.AudioContext || window.webkitAudioContext)();
+        audioContextRef.current = context;
+
+        const source = context.createMediaStreamSource(stream);
+        audioSourceNodeRef.current = source;
+
+        // Buffer size, input channels, output channels
+        const bufferSize = 4096; 
+        const scriptNode = context.createScriptProcessor(bufferSize, 1, 1); // Mono input, mono output
+        scriptProcessorNodeRef.current = scriptNode;
+
+        scriptNode.onaudioprocess = (audioProcessingEvent) => {
+          try {
+            const inputBuffer = audioProcessingEvent.inputBuffer;
+            const inputData = inputBuffer.getChannelData(0); // Assuming mono audio
+
+            // It's crucial to copy the data, as the underlying buffer is reused by the browser
+            const inputDataCopy = new Float32Array(inputData);
+            
+            if (!audioBufferRef.current) {
+              console.error('[AudioError] audioBufferRef.current is null or undefined in onaudioprocess!');
+              audioBufferRef.current = []; // Attempt to recover
+            }
+            audioBufferRef.current.push(inputDataCopy);
+            accumulatedAudioLengthRef.current += inputDataCopy.length;
+
+            // Defensive check for audioContextRef and sampleRate
+            if (!audioContextRef.current || !audioContextRef.current.sampleRate) {
+              console.error('[AudioError] AudioContext or sampleRate is invalid in onaudioprocess.');
+              // Consider stopping or attempting to recover audio context if possible, or just return
+              return; 
+            }
+            const currentSampleRate = audioContextRef.current.sampleRate;
+            const samplesPerChunk = TARGET_AUDIO_CHUNK_DURATION_SECONDS * currentSampleRate;
+
+            console.log(`[AudioDebug] Accumulated: ${accumulatedAudioLengthRef.current}, Target: ${samplesPerChunk}, SampleRate: ${currentSampleRate}, BufferSize: ${inputDataCopy.length}`);
+
+            if (accumulatedAudioLengthRef.current >= samplesPerChunk) {
+              console.log(`[AudioChunk] Accumulated ${accumulatedAudioLengthRef.current} samples at ${currentSampleRate}Hz, reaching target of ${samplesPerChunk}. Processing chunk.`);
+              
+              // Make a copy of the buffers to pass, to avoid modification issues if processAndSendAudioChunk is slow or async
+              const buffersToProcess = [...audioBufferRef.current];
+              audioBufferRef.current = []; // Reset for the next chunk immediately
+              accumulatedAudioLengthRef.current = 0; // Reset accumulated length immediately
+
+              processAndSendAudioChunk(buffersToProcess, currentSampleRate);
+            }
+          } catch (e) {
+            console.error('[AudioError] Error in onaudioprocess:', e);
+            // Optionally, try to stop audio monitoring gracefully here to prevent repeated errors
+            // This might involve calling parts of the cleanup logic from toggleAudioMonitoring
+            // For now, just log the error.
+          }
+        };
+
+        source.connect(scriptNode);
+        scriptNode.connect(context.destination); // Necessary to make onaudioprocess fire.
+
+        setIsAudioMonitoring(true);
+        addAlert('Audio monitoring started.');
+        console.log('[AudioProto] Audio monitoring started successfully.');
+
+      } catch (err) {
+        console.error('[AudioProto] Error accessing microphone:', err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          addAlert('Microphone access denied. Please enable microphone permissions in your browser settings.');
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          addAlert('No microphone found. Please connect a microphone and try again.');
+        } else {
+          addAlert(`Error accessing microphone: ${err.message}`);
+        }
+        // Ensure states are reset if setup fails
+        setIsAudioMonitoring(false); 
+        audioStreamRef.current = null;
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+          audioContextRef.current.close().catch(e => console.error("Error closing audio context on fail:", e));
+        }
+        audioContextRef.current = null;
+        scriptProcessorNodeRef.current = null; 
+        audioSourceNodeRef.current = null;
+
+      } finally {
+        setIsTogglingAudio(false);
+      }
+    } else { // About to stop audio monitoring
+      addAlert('Audio monitoring stopped.');
+      if (scriptProcessorNodeRef.current && audioSourceNodeRef.current) {
+        audioSourceNodeRef.current.disconnect(scriptProcessorNodeRef.current);
+        scriptProcessorNodeRef.current.disconnect(); // Disconnect from context.destination
+        scriptProcessorNodeRef.current.onaudioprocess = null; // Remove the handler
+        scriptProcessorNodeRef.current = null;
+      }
+      if (audioSourceNodeRef.current) {
+        audioSourceNodeRef.current.disconnect();
+        audioSourceNodeRef.current = null;
+      }
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(track => track.stop());
+        audioStreamRef.current = null;
+      }
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(e => console.error("Error closing audio context:", e));
+        audioContextRef.current = null;
+      }
+      
+      setIsAudioMonitoring(false);
+      console.log('[AudioProto] Audio monitoring stopped.');
+      audioBufferRef.current = []; // Clear buffers
+      accumulatedAudioLengthRef.current = 0; // Reset length
+      setIsTogglingAudio(false);
+    }
+  }, [isAudioMonitoring, isTogglingAudio, addAlert, processAndSendAudioChunk]);
+
+  const syncOfflineData = useCallback(async () => {
     if (offlineData.length === 0) {
       addAlert('No offline data to sync.');
       return;
     }
     setStatus('Syncing offline data...');
     let syncedCount = 0;
-    for (const record of offlineData) {
-      const formData = new FormData();
-      const blob = base64ToBlob(record.imageSrc.split(',')[1], 'image/jpeg');
-      formData.append('image', blob);
-      try {
-        // Assuming the same endpoint for sync, or a dedicated one could be made
-        await axios.post('http://localhost:5000/api/analyze-face', formData);
-        syncedCount++;
-      } catch (error) {
-        addAlert(`Failed to sync an offline record: ${error.message}`);
-        // Decide if to keep failed records or discard
-      }
+    const remainingData = [...offlineData]; // Create a copy to modify
+
+    for (let i = 0; i < offlineData.length; i++) {
+        const record = offlineData[i];
+        const formData = new FormData();
+        const blob = base64ToBlob(record.imageSrc.split(',')[1], 'image/jpeg');
+        formData.append('image', blob);
+        formData.append('session_id', sessionId); // Add session_id for offline sync too
+        // Add timestamp if your backend can use it for offline records
+        // formData.append('client_timestamp_utc', record.timestamp); 
+        try {
+            await axios.post('http://localhost:5000/api/analyze-face', formData);
+            syncedCount++;
+            // Remove successfully synced item from the copy
+            const originalIndex = remainingData.findIndex(item => item.timestamp === record.timestamp && item.imageSrc === record.imageSrc);
+            if (originalIndex > -1) {
+                remainingData.splice(originalIndex, 1);
+            }
+        } catch (error) {
+            addAlert(`Failed to sync an offline record: ${error.message}`);
+        }
     }
     setStatus(`Synced ${syncedCount} of ${offlineData.length} records.`);
-    setOfflineData(prev => prev.filter((_, i) => i >= syncedCount)); // Remove synced/attempted records
-    if (syncedCount === offlineData.length) {
-        setOfflineMode(false); // Go back online if all synced
+    setOfflineData(remainingData);
+    if (remainingData.length === 0) {
+        setOfflineMode(false);
         addAlert('All offline data synced. Resuming online mode.');
+    } else if (syncedCount > 0) {
+         addAlert(`${syncedCount} records synced. ${remainingData.length} records remain offline.`);
     } else {
-        addAlert('Some offline data failed to sync.');
+        addAlert('Offline data sync failed. Please try again later.');
     }
-  };
+  }, [offlineData, addAlert, sessionId, setStatus, setOfflineData, setOfflineMode]);
   
   useEffect(() => {
     let interval;
@@ -173,7 +776,7 @@ function App() {
     }
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMonitoring, offlineMode]); // Rerun if isMonitoring or offlineMode changes
+  }, [isMonitoring, offlineMode, sessionId]); // Added sessionId to captureAndAnalyze deps
   
   const fetchEvents = async () => {
     // if (!sessionId) return; // Removed this check, admin might not have a relevant session_id to filter by initially
@@ -252,196 +855,89 @@ function App() {
     localStorage.removeItem('proctoring_token');
     localStorage.removeItem('proctoring_user');
     // setShowLogin(true); // This is implicitly handled by !currentUser condition
-    setAuthUsername('');
-    setAuthPassword('');
-    setAuthMessage({ type: '', text: '' });
+    // Do not clear authUsername and authPassword here, user might want to retry login
+    // setAuthUsername(''); 
+    // setAuthPassword('');
+    // setAuthMessage({ type: '', text: '' }); // Message is set by interceptor or login/register handlers
+    console.log('[Auth] User logged out.');
   };
 
-  // Render Login/Register forms if not authenticated
-  if (!currentUser) {
-    return (
-      <Container className="mt-5">
-        <Row className="justify-content-center">
-          <Col md={6} lg={4}>
-            <h2 className="text-center mb-4">{showRegister ? 'Register' : 'Login'}</h2>
-            {authMessage.text && <Alert variant={authMessage.type || 'info'}>{authMessage.text}</Alert>}
-            <Form onSubmit={showRegister ? handleRegister : handleLogin}>
-              <Form.Group className="mb-3" controlId="formBasicEmail">
-                <Form.Label>Username</Form.Label>
-                <Form.Control 
-                  type="text" 
-                  placeholder="Enter username" 
-                  value={authUsername} 
-                  onChange={(e) => setAuthUsername(e.target.value)} 
-                  required 
-                />
-              </Form.Group>
+  const determineRedirectPath = () => {
+    if (!currentUser) return "/login"; // Or wherever you want unauthenticated users to go
+    if (currentUser.role === 'admin') return "/admin/dashboard"; // Admins go to dashboard
+    if (currentUser.role === 'student') return "/student/monitor"; // Students go to their monitoring page
+    return "/"; // Fallback
+  };
 
-              <Form.Group className="mb-3" controlId="formBasicPassword">
-                <Form.Label>Password</Form.Label>
-                <Form.Control 
-                  type="password" 
-                  placeholder="Password" 
-                  value={authPassword} 
-                  onChange={(e) => setAuthPassword(e.target.value)} 
-                  required 
-                />
-              </Form.Group>
-              <Button variant="primary" type="submit" className="w-100">
-                {showRegister ? 'Register' : 'Login'}
-              </Button>
-            </Form>
-            <Button 
-              variant="link" 
-              onClick={() => { 
-                setShowRegister(!showRegister); 
-                setAuthMessage({ type: '', text: '' }); 
-                setAuthUsername(''); 
-                setAuthPassword(''); 
-              }} 
-              className="mt-3 d-block text-center"
-            >
-              {showRegister ? 'Already have an account? Login' : 'Need an account? Register'}
-            </Button>
-          </Col>
-        </Row>
-      </Container>
-    );
-  }
-
-  // Main application UI (if authenticated)
   return (
-    <>
-      <Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
-        <Container>
-          <Navbar.Brand href="#">AI Proctoring System</Navbar.Brand>
-          <Navbar.Toggle aria-controls="basic-navbar-nav" />
-          <Navbar.Collapse id="basic-navbar-nav">
-            <Nav className="ms-auto">
-              {currentUser && <Navbar.Text className="me-3">Signed in as: {currentUser.username} ({currentUser.role})</Navbar.Text>}
-              {currentUser && <Button variant="outline-light" onClick={handleLogout}>Logout</Button>}
-            </Nav>
-          </Navbar.Collapse>
-        </Container>
-      </Navbar>
-
-      <Container className="mt-4">
-        <h1 className="text-center mb-4">AI Proctoring System</h1>
-        <p className="text-center text-muted mb-3">Session ID: {sessionId}</p>
-
-        <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} id="proctoring-tabs" className="mb-3">
-          <Tab eventKey="monitor" title="Monitoring">
-            <Row className="justify-content-center mb-3">
-              <Col md={8} lg={6}>
-                <div className="position-relative border bg-light p-2" style={{ minHeight: '380px' }}>
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    width="100%"
-                    height="auto"
-                    videoConstraints={{
-                      width: { ideal: 640 },
-                      height: { ideal: 480 },
-                      facingMode: "user"
-                    }}
-                    className="img-fluid"
-                  />
-                  {offlineMode && (
-                    <div className="position-absolute top-0 end-0 m-2 p-2 bg-warning text-dark rounded shadow-sm">
-                      <strong>OFFLINE MODE</strong>
-                    </div>
-                  )}
-                </div>
-              </Col>
-            </Row>
-            
-            <Row className="justify-content-center mb-3">
-              <Col md={8} lg={6} className="d-flex justify-content-around">
-                <Button 
-                  variant={isMonitoring ? "danger" : "success"} 
-                  onClick={toggleMonitoring}
-                  size="lg"
-                >
-                  {isMonitoring ? "Stop Monitoring" : "Start Monitoring"}
-                </Button>
-                
-                {offlineMode && (
-                  <Button 
-                    variant="primary" 
-                    onClick={syncOfflineData}
-                    disabled={offlineData.length === 0}
-                    size="lg"
-                  >
-                    Sync Data ({offlineData.length})
+    <Router>
+      <AppBar position="static">
+        <Toolbar>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            ExamGuard AI Proctor
+          </Typography>
+          {currentUser ? (
+            <>
+              <Typography variant="subtitle1" sx={{ mr: 2 }}>
+                Welcome, {currentUser.username} ({currentUser.role})
+              </Typography>
+              {currentUser.role === 'admin' && (
+                <>
+                  <Button color="inherit" component={RouterLink} to="/admin/dashboard">
+                    Dashboard
                   </Button>
-                )}
-              </Col>
-            </Row>
-            
-            <Row className="justify-content-center">
-              <Col md={8} lg={6}>
-                <Alert variant={status.startsWith('Error') ? 'danger' : (offlineMode ? 'warning' : 'info')} className="mt-3 text-center">
-                  <strong>Status:</strong> {status}
-                </Alert>
-                
-                <div className="mt-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                  <h5 className="text-center">Event Log:</h5>
-                  {alerts.length === 0 && <p className="text-center text-muted">No events yet.</p>}
-                  {alerts.map((alert, index) => (
-                    <Alert key={index} variant="light" className="p-2 mb-2">
-                      <small><em>{alert.timestamp}</em>: {alert.message}</small>
-                    </Alert>
-                  ))}
-                </div>
-              </Col>
-            </Row>
-          </Tab>
-          {currentUser && currentUser.role === 'admin' && (
-            <Tab eventKey="events" title="Event History">
-              <Row className="mt-3">
-                <Col>
-                  <h4>All Event Logs</h4>
-                  <Table striped bordered hover responsive>
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Timestamp</th>
-                        <th>User</th>
-                        <th>Session ID</th>
-                        <th>Event Type</th>
-                        <th>Details</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {events.map((event, index) => (
-                        <tr key={event._id || index}>
-                          <td>{index + 1}</td>
-                          <td>{new Date(event.timestamp).toLocaleString()}</td>
-                          <td>{event.username}</td>
-                          <td>{event.session_id}</td>
-                          <td>{event.event_type}</td>
-                          <td>
-                            {typeof event.details === 'object' && event.details !== null ? (
-                              <ul style={{ paddingLeft: '15px', marginBottom: '0' }}>
-                                {Object.entries(event.details).map(([key, value]) => (
-                                  <li key={key}>{`${key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}: ${value === true ? 'Yes' : value === false ? 'No' : value}`}</li>
-                                ))}
-                              </ul>
-                            ) : event.details}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </Table>
-                </Col>
-              </Row>
-            </Tab>
+                  {/* NEW: Admin Alert Log Link */}
+                  <Button color="inherit" component={RouterLink} to="/admin/alerts">
+                    Alert Log
+                  </Button>
+                </>
+              )}
+              <Button color="inherit" onClick={handleLogout}>Logout</Button>
+            </>
+          ) : (
+            <>
+              {/* AuthPage handles login/register links */}
+            </>
           )}
-        </Tabs>
-      </Container>
-    </>
+        </Toolbar>
+      </AppBar>
+      
+      <MainContentComponent
+        currentUser={currentUser}
+        determineRedirectPath={determineRedirectPath}
+        // AuthPage props
+        showRegister={showRegister}
+        authMessage={authMessage}
+        handleRegister={handleRegister}
+        handleLogin={handleLogin}
+        authUsername={authUsername}
+        setAuthUsername={setAuthUsername}
+        authPassword={authPassword}
+        setAuthPassword={setAuthPassword}
+        setShowRegister={setShowRegister}
+        setAuthMessage={setAuthMessage} // Pass setAuthMessage
+        // StudentMonitorPage props
+        sessionId={sessionId}
+        isMonitoring={isMonitoring}
+        toggleMonitoring={toggleMonitoring}
+        isTogglingVideo={isTogglingVideo}
+        toggleAudioMonitoring={toggleAudioMonitoring}
+        isAudioMonitoring={isAudioMonitoring}
+        isTogglingAudio={isTogglingAudio}
+        syncOfflineData={syncOfflineData}
+        offlineMode={offlineMode}
+        offlineData={offlineData}
+        webcamRef={webcamRef}
+        status={status}
+        alerts={alerts}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        fetchEvents={fetchEvents}
+        events={events}
+      />
+
+    </Router>
   );
 }
 
-export default App; 
+export default App;

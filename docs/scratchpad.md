@@ -1,30 +1,68 @@
 # Scratchpad
 
+## Current Task Focus
+
+**Overall Goal:** Implement Advanced Proctoring Features (Sound Detection, Screen Monitoring, Admin Dashboard, Nested Users) and stabilize the frontend build.
+
+**Current Phase:** Frontend Build Resolution & Admin Multi-Student Dashboard Planning.
+
+**Active Implementation Plans:**
+1.  `docs/implementation-plan/frontend-build-resolution.md` (NEW - Current Focus for Build Issues)
+2.  `docs/implementation-plan/admin-multi-student-dashboard.md` (Planning Phase)
+3.  `docs/implementation-plan/sound-detection.md` (Recent UI refinements completed. Paused for now.)
+4.  `docs/implementation-plan/screen-monitoring.md` (Not started)
+5.  `docs/implementation-plan/nested-user-hierarchy.md` (To be created after admin dashboard)
+
+**Completed Tasks:**
+*   User Authentication: `docs/implementation-plan/user-authentication.md` (Merged via PR #2)
+*   Sound Detection - Audio Playback & Initial UI: (Considered complete for now, refinements for student view done)
+
+## Key Information & Links
+
+*   GitHub Repository: [https://github.com/gingerol/examguard](https://github.com/gingerol/examguard)
+*   User Authentication PR (Merged): [https://github.com/gingerol/examguard/pull/2](https://github.com/gingerol/examguard/pull/2)
+
+## Lessons Learned (Chronological)
+
+*   **[2025-05-24] Docker Module Not Found:** If a Python package specified in `requirements.txt` consistently fails to import in a Docker container (`ModuleNotFoundError`) despite clean rebuilds (`--no-cache`, `down --rmi all -v`) and no errors during the `pip install -r requirements.txt` step in the Docker build log, try adding a separate, explicit `RUN pip install --no-cache-dir <package_name>` for that specific package in the Dockerfile. This can sometimes force the installation or provide more specific error messages. (Related to `Flask-JWT-Extended` issue during User Authentication task).
+*   **[2025-05-24] AI Model Files:** AI/ML helper scripts often have dependencies on specific model files. Ensure these are included in the deployment package/Docker image (e.g., from `Proctoring-AI/models` directory).
+*   **[2025-05-24] Docker Credential Helper (macOS):** Issues like `docker-credential-desktop not found` can block Docker builds on macOS. Symlinking the executable (e.g., `/Applications/Docker.app/Contents/Resources/bin/docker-credential-desktop` to `/usr/local/bin/`) and restarting Docker Desktop can resolve this.
+*   **[2025-05-24] Docker Port Conflicts:** Default Nginx port (`80` inside container) mapped to host port `3000` can conflict if `3000` is in use. Changed to `3001:80`.
+*   **[2025-05-24] OpenCV in Headless Docker:** OpenCV GUI calls (e.g., `cv2.namedWindow`, `cv2.imshow`) in backend scripts will cause crashes in headless Docker environments. These must be removed or conditionally excluded.
+*   **[2025-05-24] External Script Signatures:** When sourcing scripts from external repositories, verify function signatures and availability. `get_eye_status` was implemented based on `track_eye` logic from the `Proctoring-AI` `eye_tracker.py`.
+*   **[2025-05-24] NumPy Dependency:** Ensure `numpy` is available and imported if numpy array operations are used.
+*   **[2025-05-25] Explicit Pip Installs in Dockerfile:** For critical packages, an explicit `RUN pip install <package>` in the Dockerfile can be more reliable than solely relying on `requirements.txt`.
+*   **[2025-05-25] Docker COPY Paths:** When Docker `COPY` commands fail, verify the file's existence, name (case-sensitive), and path within the Docker build context.
+*   **[2025-05-26] Librosa and FFmpeg:** `librosa.load()` may require `ffmpeg` for certain audio formats. Ensure `ffmpeg` is installed in the container.
+*   **[2025-05-26] Audio Library Warnings (Malformed Files):** Warnings from audio libraries (e.g., `libmpg123`) can indicate malformed or empty audio files.
+*   **[2025-05-26] MongoDB Stability & Disk Space:** MongoDB can crash (`pymongo.errors.ServerSelectionTimeoutError`, "No space left on device") if the Docker host runs out of disk space. Regularly prune Docker images and build cache.
+*   **[2025-05-26] Verify User Existence for Login Issues:** For 401 "Bad username or password" errors, confirm user existence in the database, especially after data modifications or volume changes.
+*   **[2025-05-26] MongoDB Collection Name Consistency:** Ensure collection names in queries match those in application code.
+*   **[2025-05-26] Default User Role on Registration:** If the frontend registration UI does not specify a role, the backend may default all new users to a 'student' role. This can prevent access to admin-only features if an 'admin' user is registered via this UI. Manual DB update or a dedicated admin creation mechanism is needed.
+*   **[2025-05-27] React Dev Server Proxy:** For API requests (e.g., `/api/...`) from a React app served by `react-scripts` (webpack dev server) to a separate backend server during development, a `"proxy"` key (e.g., `"proxy": "http://localhost:5000"`) must be added to the frontend's `package.json`. Otherwise, the dev server will attempt to handle these API routes itself, often resulting in `text/html` responses for API calls and incorrect headers (like `x-powered-by: Express`), leading to errors like `NotSupportedError` for media playback. Ensure the dev server is fully restarted after adding this setting.
+*   **[2025-05-27] Port Conflicts with `npm start`:** If the port specified in `PORT=xxxx npm start` (or the default port, usually 3000) is in use, `react-scripts` will typically prompt to use the next available port. Always check the terminal output from `npm start` to confirm the actual port the development server is running on (e.g., `http://localhost:3004` instead of `http://localhost:3003`).
+*   **[2025-05-28] Webpack Polyfill Specificity (`process/browser`):** When providing polyfills for Node.js core modules like `process` in Webpack 5 (via `react-app-rewired` and `config-overrides.js`), some packages (e.g., `axios`) might attempt to import highly specific paths like `process/browser`. A simple fallback for `"process": require.resolve("process/browser")` might not be enough. The error "BREAKING CHANGE: The request 'process/browser' failed to resolve only because it was resolved as fully specified" is a strong indicator. Using `resolve.alias` to explicitly map `'process/browser': require.resolve('process/browser.js')` can be a more robust solution.
+
+## Notes & Reminders
+
+*   The Admin Multi-Student Dashboard will require significant backend API changes and a new frontend view.
+*   Consider using WebSockets for real-time updates on the dashboard.
+
 ## Current Task
-- **Task:** [NEW] Implement User Authentication
-- **Implementation Plan:** [`docs/implementation-plan/user-authentication.md`](docs/implementation-plan/user-authentication.md)
+- **Task:** [FRONTEND BUILD] Resolve persistent build errors (`axios` and MUI related).
+- **Status:** Planning phase. New implementation plan created.
+- **Implementation Plan:** [`docs/implementation-plan/frontend-build-resolution.md`](docs/implementation-plan/frontend-build-resolution.md)
 
 ## Detailed Steps (from Implementation Plan)
-*(To be filled by Executor as tasks from `docs/implementation-plan/user-authentication.md` are completed)*
-- Task 0: Setup Development Branch - Complete
-- Task 1: Design Authentication Strategy and User Model - Complete
-- Task 2: Backend Implementation (Authentication API) - Complete
-- Task 3: Frontend Implementation (Login UI and Auth Handling) - Complete
+*(To be filled by Executor as tasks from the frontend build resolution plan are actioned)*
 
-## Lessons Learned
-- [YYYY-MM-DD] Initial lesson entry.
-- [2024-07-24] Pivoted from direct OS installation to a Docker-based containerized approach. This required a full rewrite of the setup plan. Branch name changed to `feature/setup-environment-docker`.
-- [2024-07-24] Critical Error: Planned Linux-specific commands (`apt`) for a macOS (`darwin`) environment. Package management and Docker installation steps must be OS-appropriate. For macOS, Docker Desktop is the standard and includes Docker Compose. `sudo apt update/upgrade` and `usermod` are incorrect for macOS Docker setup.
-- [2024-07-24] Potential Blocker: The backend's Python helper scripts (`face_detector.py`, etc.) likely require pre-trained model files. These were not explicitly copied from the cloned `Proctoring-AI` repo into the `backend/` build context. The backend Docker image build might succeed, but the application will fail at runtime if models are missing. The `Dockerfile` has a `COPY . .` command; model files need to be in the `backend` directory for this to work, and Python scripts need to reference them correctly.
+## Previous Task (Sound Detection UI Refinements)
+- **Task:** [SOUND DETECTION] UI Refinements for Student View (Button colors, labels, font sizes).
+- **Status:** Completed. Changes committed to `feature/sound-detection`.
+- **Implementation Plan:** [`docs/implementation-plan/sound-detection.md`](docs/implementation-plan/sound-detection.md)
 
-Status: New plan created. Ready to begin execution.
+---
+*(Older entries from sound-detection.md may be archived or summarized if this section becomes too long)*
 
-Next Steps: Proceed with Task 4: Testing and Refinement from `docs/implementation-plan/user-authentication.md`.
-
-*   **[2025-05-24]** Initial OS-specific commands (`apt update`) are not portable. Always verify target OS or use containerization for broader compatibility.
-*   **[2025-05-24]** AI/ML helper scripts often have dependencies on specific model files. Ensure these are included in the deployment package/Docker image (`Proctoring-AI/models` directory).
-*   **[2025-05-24]** Docker credential helper issues (`docker-credential-desktop not found`) can block Docker builds on macOS. Symlinking the executable (`/Applications/Docker.app/Contents/Resources/bin/docker-credential-desktop` to `/usr/local/bin/`) and restarting Docker Desktop resolves this.
-*   **[2025-05-24]** Default Nginx port (`80` inside container) mapped to host port `3000` can conflict if `3000` is in use. Changed to `3001:80`.
-*   **[2025-05-24]** OpenCV GUI calls (e.g., `cv2.namedWindow`, `cv2.imshow`, `cv2.createTrackbar`) in backend scripts will cause crashes (Qt/XCB errors, SIGABRT) in headless Docker environments. These must be removed or conditionally excluded.
-*   **[2025-05-24]** When sourcing scripts from external repositories, verify function signatures and availability. `get_eye_status` was missing from the `Proctoring-AI` `eye_tracker.py` and had to be implemented based on its `track_eye` logic, and `app.py` updated to call it correctly.
-*   **[2025-05-24]** Ensure `numpy` is available and imported if numpy array operations are used (e.g. `np.frombuffer`, `np.uint8`, `np.int32`, `np.linalg.norm`). The `eye_tracker.py` from the original `Proctoring-AI` repo had `cv2.resize` which needs `img` to be `np.array` or scalar. The `get_eye_status` we implemented might also need `np` for its calculations. 
+## Lessons Learned (New - Add items here as they occur)
+- [2025-05-28] When facing persistent, complex build issues after multiple attempts, switching from an iterative Executor mode to a more structured Planner mode is beneficial to re-evaluate and form a systematic plan.

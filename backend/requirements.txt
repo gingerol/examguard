@@ -1,6 +1,9 @@
-pymongo
+Flask==2.2.2
+pymongo==4.3.3
 python-dotenv
 numpy # Often a dependency for CV/ML
-Flask-JWT-Extended
-Werkzeug
-# Add dlib if face_landmarks.py from Proctoring-AI requires it. 
+Flask-JWT-Extended==4.4.4
+Werkzeug==2.2.2
+# Add dlib if face_landmarks.py from Proctoring-AI requires it.
+webrtcvad-wheels
+librosa

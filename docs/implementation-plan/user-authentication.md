@@ -134,7 +134,7 @@ The key motivations for implementing user authentication are:
     -   [x] Sub-Task 4.4: Enhance Event Logging with User Identity.
 -   [x] Task 5: Documentation and Merge
     -   [x] Sub-Task 5.1: Update documentation.
-    -   [ ] Sub-Task 5.2: Merge `feature/user-authentication` to `main`.
+    -   [x] Sub-Task 5.2: Merge `feature/user-authentication` to `main`.
 
 ## 7. Executor's Feedback or Assistance Requests
 *(To be filled by Executor)*
@@ -159,6 +159,7 @@ The key motivations for implementing user authentication are:
 + **Sub-Task 4.3 Completed (with feedback):** User E2E testing confirmed overall system functionality. Key feedback: Admin event logs lack user distinction, making it hard to correlate events/sessions to specific users. This was addressed in Sub-Task 4.4.
 + **Sub-Task 4.4 Completed:** Event logging enhanced. Backend now stores `username` with each event. Frontend admin view displays "All Event Logs" (not filtered by admin's session), includes a "User" column, a "Session ID" column, and formats the "Details" column for better readability. This successfully addresses the feedback from Sub-Task 4.3.
 + **Sub-Task 5.1 Completed:** Created `ai-proctor-docker/README.md` documenting the services, environment variables (especially `FLASK_JWT_SECRET_KEY` and `MONGO_URI`), API endpoints (authentication, proctoring, events), user roles, and basic run instructions.
++ **Sub-Task 5.2 Completed:** Feature branch `feature/user-authentication` merged to `main` via PR #2. Local and remote feature branches deleted.
 
 ## 8. Lessons Learned
 *(To be documented as they arise)*
