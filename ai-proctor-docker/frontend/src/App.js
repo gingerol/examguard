@@ -306,7 +306,6 @@ function App() {
 
   // eslint-disable-next-line no-unused-vars
   const [status, setStatus] = useState('Ready');
-  // eslint-disable-next-line no-unused-vars
   const [alerts, setAlerts] = useState([]);
   const [offlineMode, setOfflineMode] = useState(false);
   const [isTogglingVideo, setIsTogglingVideo] = useState(false); // For video button
@@ -338,7 +337,8 @@ function App() {
 
   // Effect to save sessionId to sessionStorage whenever it changes
   useEffect(() => {
-    if (sessionId) { // Ensure sessionId is not null/undefined before storing
+    // Only store if it's not the placeholder or has been set by backend
+    if (sessionId && !sessionId.startsWith('session_')) {
       sessionStorage.setItem('proctoring_sessionId', sessionId);
     }
   }, [sessionId]);
@@ -427,19 +427,152 @@ function App() {
     return new Blob(byteArrays, { type: mimeType });
   };
 
-  const addAlert = useCallback((message) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setAlerts(prev => [...prev, { timestamp, message }].slice(-5)); // Keep last 5 alerts
+  // Helper to add alerts
+  const addAlert = useCallback((message, type = 'info', details = null) => {
+    const newAlert = {
+      id: `alert_${new Date().getTime()}_${Math.random().toString(36).substr(2, 9)}`, // More unique ID
+      timestamp: new Date().toISOString(),
+      message,
+      type, // 'info', 'warning', 'error'
+      details // Can be an object with more data, e.g., { look_direction: 'left' }
+    };
+    setAlerts(prevAlerts => [newAlert, ...prevAlerts].slice(0, 50)); // Keep last 50
+    // If it's an error or warning, also log to console for easier debugging
+    if (type === 'error') console.error(`Alert: ${message}`, details || '');
+    else if (type === 'warning') console.warn(`Alert: ${message}`, details || '');
+    else console.log(`Alert: ${message}`, details || '');
   }, []);
 
+  // NEW: Function to start student monitoring session via API
+  const startStudentSession = async () => {
+    if (!currentUser || !currentUser.token) {
+      addAlert('Authentication token not found. Cannot start session.', 'error');
+      return null;
+    }
+    try {
+      // The backend generates the session_id, so we don't send one from frontend initially for /start
+      // The backend's /start endpoint in app.py was modified to generate it if not provided.
+      // Let's ensure we don't send a pre-generated one unless it's a resume scenario (not handled yet)
+      
+      // Generate session_id on the frontend as the backend expects it.
+      const newSessionId = `session_${new Date().getTime()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const response = await axios.post('http://localhost:5000/api/student/monitoring/start', 
+        { session_id: newSessionId }, // Send the generated session_id
+        {
+          headers: { Authorization: `Bearer ${currentUser.token}` }
+        }
+      );
+      if (response.data && response.data.session_id) {
+        setSessionId(response.data.session_id); // Update state with backend-confirmed (or potentially modified) session_id
+        addAlert(`Monitoring session ${response.data.session_id} started with backend.`, 'success');
+        return response.data.session_id;
+      } else {
+        addAlert('Failed to start session with backend: No session_id received.', 'error');
+        console.error('Backend response missing session_id:', response.data);
+        return null;
+      }
+    } catch (error) {
+      console.error("Error starting student monitoring session:", error);
+      const errorMsg = error.response?.data?.msg || "Failed to start proctoring session with backend.";
+      addAlert(errorMsg, 'error');
+      if (error.response?.status === 401) {
+         addAlert('Authentication error. Please log in again.', 'error');
+         // Consider calling handleLogout() here or redirecting to login
+      }
+      return null;
+    }
+  };
+
+  // NEW: Function to stop student monitoring session via API
+  const stopStudentSession = async (currentSessionId) => {
+    if (!currentUser || !currentUser.token) {
+      addAlert('Authentication token not found. Cannot stop session.', 'error');
+      return false;
+    }
+    if (!currentSessionId || currentSessionId.startsWith('session_')) {
+        addAlert('No active backend session to stop.', 'warning');
+        console.warn("Attempted to stop session without a valid backend session ID", currentSessionId);
+        return true; // Consider it "stopped" from frontend perspective if no valid backend ID
+    }
+    try {
+      await axios.post('http://localhost:5000/api/student/monitoring/stop', 
+        { session_id: currentSessionId }, // Send the current session_id to the backend
+        { headers: { Authorization: `Bearer ${currentUser.token}` } }
+      );
+      addAlert(`Monitoring session ${currentSessionId} stopped with backend.`, 'success');
+      // Optionally clear the sessionId from state/sessionStorage if a new one should always be generated
+      // For now, we keep it, but a fresh login/start might generate a new one.
+      // setSessionId(null); // Or `session_${new Date().getTime()}` if we want a placeholder
+      // sessionStorage.removeItem('proctoring_sessionId');
+      return true;
+    } catch (error) {
+      console.error("Error stopping student monitoring session:", error);
+      const errorMsg = error.response?.data?.msg || "Failed to stop proctoring session with backend.";
+      addAlert(errorMsg, 'error');
+       if (error.response?.status === 401) {
+         addAlert('Authentication error during stop. Please log in again.', 'error');
+      }
+      return false;
+    }
+  };
+
+  // eslint-disable-next-line no-unused-vars
+  const toggleMonitoring = useCallback(async () => { // Made async
+    if (isTogglingVideo) return;
+    setIsTogglingVideo(true);
+
+    const newIsMonitoring = !isMonitoring; // Determine desired new state first
+
+    if (newIsMonitoring) { // ---- Attempting to START monitoring ----
+      setStatus('Starting monitoring session with backend...');
+      const backendSessionId = await startStudentSession();
+      if (backendSessionId) {
+        setIsMonitoring(true);
+        setStatus('Monitoring started.');
+        addAlert('Video monitoring started.', 'info');
+      } else {
+        // Failed to start backend session
+        setStatus('Failed to start backend session. Monitoring off.');
+        setIsMonitoring(false); // Ensure it's off
+        addAlert('Could not start video monitoring with backend.', 'error');
+      }
+    } else { // ---- Attempting to STOP monitoring ----
+      setStatus('Stopping monitoring session with backend...');
+      const stoppedSuccessfully = await stopStudentSession(sessionId);
+      if (stoppedSuccessfully) {
+        setIsMonitoring(false);
+        setStatus('Monitoring stopped.');
+        addAlert('Video monitoring stopped.', 'info');
+      } else {
+        // Failed to stop backend session, but we should still reflect frontend state
+        // Or, decide if frontend should remain "stuck" in monitoring state if backend stop fails
+        setIsMonitoring(false); // Forcing UI to reflect stop intent
+        setStatus('Error stopping backend session. Monitoring off on frontend.');
+        addAlert('Could not cleanly stop video monitoring with backend. Please check connection.', 'warning');
+      }
+    }
+    setIsTogglingVideo(false);
+  }, [isTogglingVideo, addAlert, currentUser, isMonitoring, sessionId]); // Added currentUser, isMonitoring, sessionId
+
   const captureAndAnalyze = useCallback(async () => {
-    if (!webcamRef.current) return;
-    
-    const imageSrc = webcamRef.current.getScreenshot();
-    if (!imageSrc) {
-      console.log("[Debug] captureAndAnalyze: imageSrc is null or empty.");
+    if (!webcamRef.current) {
+      console.warn("Webcam ref not available yet for captureAndAnalyze.");
       return;
     }
+    const imageSrc = webcamRef.current.getScreenshot();
+    if (!imageSrc) {
+      addAlert('Could not get screenshot from webcam.', 'warning');
+      return;
+    }
+
+    if (!sessionId || sessionId.startsWith('session_')) {
+      console.warn("captureAndAnalyze: Missing or placeholder session_id. Analysis might not be linked to a backend session.", sessionId);
+      // Do not addAlert here as it would be too noisy.
+      // The startStudentSession should handle alerts related to session ID issues.
+    }
+
+    // Debugging image and blob
     console.log("[Debug] captureAndAnalyze: imageSrc length:", imageSrc.length, "starts with:", imageSrc.substring(0, 30));
     
     const base64Data = imageSrc.split(',')[1];
@@ -489,25 +622,6 @@ function App() {
     }
   }, [sessionId, offlineMode, addAlert]);
   
-  // eslint-disable-next-line no-unused-vars
-  const toggleMonitoring = useCallback(() => {
-    if (isTogglingVideo) return;
-    setIsTogglingVideo(true);
-
-    setIsMonitoring(prevIsMonitoring => {
-      const newIsMonitoring = !prevIsMonitoring;
-      if (newIsMonitoring) { // About to start
-        setStatus('Starting monitoring...');
-        addAlert('Monitoring started.');
-      } else { // About to stop
-        setStatus('Monitoring stopped.');
-        addAlert('Monitoring stopped.');
-      }
-      setIsTogglingVideo(false); // Set back regardless of outcome for simplicity here
-      return newIsMonitoring;
-    });
-  }, [isTogglingVideo, addAlert]);
-
   // Helper function to convert ArrayBuffer to Base64 string
   const arrayBufferToBase64 = (buffer) => {
     let binary = '';
@@ -606,7 +720,7 @@ function App() {
       // 4. Send to backend (Sub-Task 2.3)
       const clientTimestampUTC = new Date().toISOString();
       const audioDataPayload = {
-        audio_chunk_base64: base64WAV,
+        audio_data: base64WAV,
         sample_rate: sampleRate,
         session_id: sessionId, // Assumes sessionId is available in this scope
         client_timestamp_utc: clientTimestampUTC
