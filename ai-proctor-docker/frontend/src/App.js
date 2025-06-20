@@ -464,7 +464,6 @@ function App() {
     setIsSessionStarting(true); // Set starting flag
     const localGeneratedSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     console.log(`[Session Start] Attempting to start student session with frontend-generated ID: ${localGeneratedSessionId}`);
-    // setSessionIdInternal(localGeneratedSessionId); // Set frontend session ID for display while waiting for backend
 
     try {
       // The backend will generate/confirm the actual session_id
@@ -595,11 +594,11 @@ function App() {
       return;
     }
 
-    // sessionId is now checked in the useEffect that calls this.
-    // if (!sessionId || sessionId.startsWith('session_')) { // This check is now less critical here, but good for defense
-    //   console.warn("captureAndAnalyze: Called with missing or placeholder session_id.", sessionId);
-    //   return; // Don't proceed if session ID isn't backend-confirmed
-    // }
+    if (!sessionId || sessionId.startsWith('session_')) {
+      console.warn("captureAndAnalyze: Missing or placeholder session_id. Analysis might not be linked to a backend session.", sessionId);
+      // Do not addAlert here as it would be too noisy.
+      // The startStudentSession should handle alerts related to session ID issues.
+    }
 
     // Debugging image and blob
     console.log("[Debug] captureAndAnalyze: imageSrc length:", imageSrc.length, "starts with:", imageSrc.substring(0, 30));

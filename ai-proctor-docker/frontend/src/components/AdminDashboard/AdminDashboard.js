@@ -32,7 +32,7 @@ const AdminDashboard = ({ currentUser }) => {
     setSnackbarMessage(message);
     setSnackbarSeverity(severity);
     setSnackbarOpen(true);
-  }, [setSnackbarMessage, setSnackbarSeverity, setSnackbarOpen]);
+  }, []);
 
   const handleCloseSnackbar = (event, reason) => {
     if (reason === 'clickaway') {
@@ -91,12 +91,10 @@ const AdminDashboard = ({ currentUser }) => {
   useEffect(() => {
     const fetchActiveSessions = async () => {
       setIsLoading(true);
-      // setError(null); // Reset error at the beginning of fetch
+      setError(null);
       try {
         const token = currentUser?.token;
         if (!token) {
-            // setError("Authentication token not found. Please login again.");
-            // Using handleShowSnackbar for user feedback and console for detailed error
             console.error("[Auth Error] Authentication token not found for fetching sessions.");
             handleShowSnackbar("Authentication token not found. Please login again.", "error");
             setIsLoading(false);
@@ -158,7 +156,6 @@ const AdminDashboard = ({ currentUser }) => {
 
         newSocket.on('connection_ack', (data) => {
           console.log('[SocketIO] Connection Acknowledged:', data.message);
-          // handleShowSnackbar(data.message || 'WebSocket Connection Confirmed!', 'success'); // Already handled by 'connect'
         });
         
         newSocket.on('disconnect', (reason) => {
@@ -168,7 +165,6 @@ const AdminDashboard = ({ currentUser }) => {
           } else {
               handleShowSnackbar('WebSocket Disconnected.', 'info');
           }
-          // No need to manually set socketRef.current to null here if relying on 'connect_error' or successful reconnect
         });
 
         newSocket.on('connect_error', (err) => {
@@ -176,8 +172,6 @@ const AdminDashboard = ({ currentUser }) => {
           const wsErrorMsg = `WebSocket connection error: ${err.message}. Real-time updates may be affected.`;
           setError(prevError => prevError ? `${prevError} ${wsErrorMsg}` : wsErrorMsg);
           handleShowSnackbar(wsErrorMsg, 'error');
-          // socketRef.current?.disconnect(); // Disconnect if connection error leads to unusable state
-          // socketRef.current = null; // May lead to immediate reconnection if token is still present
         });
 
         newSocket.on('new_student_session_started', handleNewSession);
@@ -194,7 +188,6 @@ const AdminDashboard = ({ currentUser }) => {
         socketRef.current = null;
       }
       const authErrorMsg = "WebSocket connection requires authentication. Please login.";
-      // setError(prevError => prevError ? `${prevError} ${authErrorMsg}` : authErrorMsg); // Avoid multiple error messages
       if (!error?.includes(authErrorMsg)) { // Show snackbar only if error is not already shown
         handleShowSnackbar(authErrorMsg, 'error');
       }
@@ -203,14 +196,13 @@ const AdminDashboard = ({ currentUser }) => {
     return () => {
       if (socketRef.current && socketRef.current.connected) { // Only disconnect if connected
         console.log("[SocketIO] Cleaning up WebSocket connection on component unmount or token change.");
-        // Removing specific listeners not strictly necessary if .off() is called before disconnect/new socket
         socketRef.current.disconnect(); 
         socketRef.current = null; // Ensure ref is cleared
       }
     };
-  }, [currentUser?.token, handleNewSession, handleSessionEnded, handleSessionUpdate, handleShowSnackbar, error]); // Added 'error' to deps to react to error state changes if needed, but monitor for loops.
+  }, [currentUser?.token, handleNewSession, handleSessionEnded, handleSessionUpdate, handleShowSnackbar, error]);
 
-  if (isLoading && !sessions.length) { // Show loading only if truly no sessions yet
+  if (isLoading && !sessions.length) {
     return (
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
