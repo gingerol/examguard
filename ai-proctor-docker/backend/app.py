@@ -191,112 +191,156 @@ def analyze_face():
     
     print(f"[DEBUG_ANALYZE_FACE] Image decoded successfully. Shape: {img.shape}", flush=True)
 
-    faces = find_faces(img, face_model)
-    print(f"[DEBUG_ANALYZE_FACE] find_faces result: {faces}", flush=True)
-    
-    # Initialize is_alert and alert_details, current_status_for_dashboard, snapshot_filename_for_alert
-    is_alert = False
-    alert_details = {}
-    current_status_for_dashboard = "Unknown"
-    # snapshot_filename_for_store = None # Replaced by snapshot_filename_for_alert
-    snapshot_filename_for_alert = None
+    # Default response_data, to be updated in success cases
+    response_data = {"error": "Initial processing error", "face_detected": False}
 
-
-    if len(faces) == 0:
-        current_status_for_dashboard = "No Face Detected"
-        is_alert = True
-        alert_details = {"type": "no_face_detected", "message": "No face was detected."}
-        response_data = {"face_detected": False, "eye_status": "N/A", "looking_away": False, "error": "No face detected"}
-        print("[DEBUG_ANALYZE_FACE] Condition: No face detected.", flush=True)
-    else:
-        base_event_data = {
-            "timestamp": datetime.datetime.utcnow(),
-            "session_id": session_id,
-            "username": current_user_identity
-        }
-        if len(faces) > 1:
-            current_status_for_dashboard = "Multiple Faces Detected"
-            is_alert = True # This should be set before alert_details for this case
-            alert_details = {"type": "multiple_faces_detected", "message": f"Multiple faces ({len(faces)}) detected."}
-            # The original code analyzed the first face even if multiple were detected.
-            # We'll keep that behavior but ensure the alert is for multiple faces.
+    try:
+        faces = find_faces(img, face_model)
+        print(f"[DEBUG_ANALYZE_FACE] find_faces result: {faces}", flush=True)
         
-        face = faces[0] # Analyze the first detected face
-        marks = detect_marks(img, landmark_model, face)
-        eye_status = get_eye_status(marks)
-        
-        # Update current_status_for_dashboard based on single face analysis if not already set by multiple_faces
-        if not is_alert: # Only update if not already a multiple_faces alert
-             current_status_for_dashboard = eye_status if eye_status else "Face Detected"
+        is_alert = False
+        alert_details = {}
+        current_status_for_dashboard = "Unknown"
+        snapshot_filename_for_alert = None
 
-        print(f"[DEBUG_ANALYZE_FACE] Face detected. Eye status: {eye_status}", flush=True)
 
-        if eye_status != "forward" and eye_status is not None :
-            if not is_alert: # Don't overwrite multiple_faces alert
-                is_alert = True
-                current_status_for_dashboard = f"Looking Away ({eye_status})"
-                alert_details = {"type": "looking_away", "message": f"Student may be looking away: {eye_status}"}
+        if len(faces) == 0:
+            current_status_for_dashboard = "No Face Detected"
+            is_alert = True
+            alert_details = {"type": "no_face_detected", "message": "No face was detected."}
+            response_data = {"face_detected": False, "eye_status": "N/A", "looking_away": False, "error": "No face detected"}
+            print("[DEBUG_ANALYZE_FACE] Condition: No face detected.", flush=True)
+        else:
+            base_event_data = {
+                "timestamp": datetime.datetime.utcnow(),
+                "session_id": session_id,
+                "username": current_user_identity
+            }
+            if len(faces) > 1:
+                current_status_for_dashboard = "Multiple Faces Detected"
+                is_alert = True # This should be set before alert_details for this case
+                alert_details = {"type": "multiple_faces_detected", "message": f"Multiple faces ({len(faces)}) detected."}
+                # The original code analyzed the first face even if multiple were detected.
+                # We'll keep that behavior but ensure the alert is for multiple faces.
+            
+            face = faces[0] # Analyze the first detected face
+            marks = detect_marks(img, landmark_model, face)
+            eye_status = get_eye_status(marks)
+            
+            # Update current_status_for_dashboard based on single face analysis if not already set by multiple_faces
+            if not is_alert: # Only update if not already a multiple_faces alert
+                 current_status_for_dashboard = eye_status if eye_status else "Face Detected"
 
-        analyzed_event_data = {
-            **base_event_data,
-            "event_type": "face_analyzed",
-            "details": {"eye_status": eye_status, "looking_away": eye_status != "forward", "face_count": len(faces)}
-        }
-        events_collection.insert_one(analyzed_event_data)
-        response_data = {"face_detected": True, "eye_status": eye_status, "looking_away": eye_status != "forward"}
-        if len(faces) > 1: # This adds a warning if multiple faces, but still returns analysis of first.
-            response_data["warning_multiple_faces"] = f"Multiple faces ({len(faces)}) detected, analyzed first one."
+            print(f"[DEBUG_ANALYZE_FACE] Face detected. Eye status: {eye_status}", flush=True)
 
-    if is_alert and session_id:
-        alert_id = str(uuid.uuid4())
-        # snapshot_filename_for_alert is already initialized to None
+            if eye_status != "forward" and eye_status is not None :
+                if not is_alert: # Don't overwrite multiple_faces alert
+                    is_alert = True
+                    current_status_for_dashboard = f"Looking Away ({eye_status})"
+                    alert_details = {"type": "looking_away", "message": f"Student may be looking away: {eye_status}"}
 
-        # Save snapshot if img is valid and it's a relevant alert type
-        if img is not None and alert_details.get("type") in ["no_face_detected", "multiple_faces_detected", "looking_away"]:
-            snapshot_filename_for_alert = f"alert_{session_id}_{alert_id}.jpg"
-            snapshot_path = os.path.join(SNAPSHOT_DIR, snapshot_filename_for_alert)
+            analyzed_event_data = {
+                **base_event_data,
+                "event_type": "face_analyzed",
+                "details": {"eye_status": eye_status, "looking_away": eye_status != "forward", "face_count": len(faces)}
+            }
             try:
-                cv2.imwrite(snapshot_path, img)
-                print(f"[DEBUG_ANALYZE_FACE] Saved ALERT snapshot to: {snapshot_path}", flush=True)
-            except Exception as e:
-                print(f"[DEBUG_ANALYZE_FACE] Error saving ALERT snapshot: {e}", flush=True)
-                snapshot_filename_for_alert = None
+                events_collection.insert_one(analyzed_event_data)
+            except Exception as db_exc:
+                print(f"[ERROR_ANALYZE_FACE] DB insert to events_collection failed: {db_exc}", flush=True)
+                # import sys; import traceback; traceback.print_exc(file=sys.stderr) # For more detailed logs if needed on server
+                return jsonify({"error": "Database error during event insertion.", "detail": str(db_exc)}), 500
+            
+            response_data = {"face_detected": True, "eye_status": eye_status, "looking_away": eye_status != "forward"}
+            if len(faces) > 1: # This adds a warning if multiple faces, but still returns analysis of first.
+                response_data["warning_multiple_faces"] = f"Multiple faces ({len(faces)}) detected, analyzed first one."
 
-        alert_doc = {
-            "_id": alert_id,
-            "session_id": session_id,
-            "username": current_user_identity,
-            "timestamp": datetime.datetime.utcnow(),
-            "alert_type": alert_details.get("type", "unknown_alert"),
-            "message": alert_details.get("message", "An alert was triggered."),
-            "details": alert_details, 
-            "snapshot_filename": snapshot_filename_for_alert,
-            "is_acknowledged": False 
-        }
-        alerts_collection.insert_one(alert_doc)
-        socketio.emit('new_alert', alert_doc, room=admin_dashboard_room, namespace='/ws/admin_dashboard')
-        alert_type_for_log = alert_details.get("type", "unknown_type") # Safer for logging
-        print(f"[DEBUG_ANALYZE_FACE] Alert '{alert_type_for_log}' saved and emitted for session {session_id}", flush=True)
+        if is_alert and session_id:
+            alert_id = str(uuid.uuid4())
+            # snapshot_filename_for_alert is already initialized to None
 
-    user_data_for_dashboard = active_sessions_store.get(session_id, {}).get('users', {}).get(current_user_identity, {})
-    user_data_for_dashboard.update({
-        "last_seen": datetime.datetime.utcnow().isoformat(),
-        "last_face_analysis_status": current_status_for_dashboard, 
-        "last_alert_type": alert_details.get("type") if is_alert else None,
-        # Use snapshot_filename_for_alert which was determined during this call
-        "last_alert_snapshot": snapshot_filename_for_alert if is_alert and snapshot_filename_for_alert else user_data_for_dashboard.get("last_alert_snapshot")
-    })
-    if session_id not in active_sessions_store:
-        active_sessions_store[session_id] = {'users': {}, 'last_event_timestamp': datetime.datetime.utcnow()}
-    active_sessions_store[session_id]['users'][current_user_identity] = user_data_for_dashboard
-    active_sessions_store[session_id]['last_event_timestamp'] = datetime.datetime.utcnow()
+            # Save snapshot if img is valid and it's a relevant alert type
+            if img is not None and alert_details.get("type") in ["no_face_detected", "multiple_faces_detected", "looking_away"]:
+                snapshot_filename_for_alert = f"alert_{session_id}_{alert_id}.jpg"
+                snapshot_path = os.path.join(SNAPSHOT_DIR, snapshot_filename_for_alert)
+                try:
+                    cv2.imwrite(snapshot_path, img)
+                    print(f"[DEBUG_ANALYZE_FACE] Saved ALERT snapshot to: {snapshot_path}", flush=True)
+                except Exception as e:
+                    print(f"[DEBUG_ANALYZE_FACE] Error saving ALERT snapshot: {e}", flush=True)
+                    snapshot_filename_for_alert = None # Ensure it's None if save fails
 
-    socketio.emit('session_update', 
-                  {'session_id': session_id, 'user_id': current_user_identity, 'data': user_data_for_dashboard}, 
-                  room=admin_dashboard_room, namespace='/ws/admin_dashboard')
-    print(f"[DEBUG_ANALYZE_FACE] Emitted session_update for {session_id}, user {current_user_identity}", flush=True)
+            alert_doc = {
+                "_id": alert_id,
+                "session_id": session_id,
+                "username": current_user_identity,
+                "timestamp": datetime.datetime.utcnow(),
+                "alert_type": alert_details.get("type", "unknown_alert"),
+                "message": alert_details.get("message", "An alert was triggered."),
+                "details": alert_details, 
+                "snapshot_filename": snapshot_filename_for_alert,
+                "is_acknowledged": False 
+            }
+            try:
+                alerts_collection.insert_one(alert_doc)
+            except Exception as db_exc:
+                print(f"[ERROR_ANALYZE_FACE] DB insert to alerts_collection failed: {db_exc}", flush=True)
+                # import sys; import traceback; traceback.print_exc(file=sys.stderr) # For more detailed logs if needed on server
+                return jsonify({"error": "Database error saving alert.", "detail": str(db_exc)}), 500
 
-    return jsonify(response_data)
+            print(f"[DEBUG_ANALYZE_FACE] Alert for {alert_details.get('message')} saved to DB with ID: {alert_id}. Emitting to admin.", flush=True)
+            
+            # Prepare a JSON-serializable version of the alert for Socket.IO
+            alert_doc_for_emit = alert_doc.copy()
+            if isinstance(alert_doc_for_emit.get('timestamp'), datetime.datetime):
+                alert_doc_for_emit['timestamp'] = alert_doc_for_emit['timestamp'].isoformat()
+
+            # Emit the new alert to the admin dashboard
+            socketio.emit('new_alert', alert_doc_for_emit, room=admin_dashboard_room, namespace='/ws/admin_dashboard')
+            alert_type_for_log = alert_details.get("type", "unknown_type") # Safer for logging
+            print(f"[DEBUG_ANALYZE_FACE] Alert '{alert_type_for_log}' saved and emitted for session {session_id}", flush=True)
+
+        # --- Update active_sessions_store ---
+        session_entry = active_sessions_store.get(session_id)
+        if session_entry: # Check if the session exists
+            session_entry.update({
+                "last_seen": datetime.datetime.utcnow().isoformat(),
+                "last_face_analysis_status": current_status_for_dashboard,
+                "last_alert_type": alert_details.get("type") if is_alert else session_entry.get("last_alert_type"),
+                "last_alert_timestamp": datetime.datetime.utcnow().isoformat() if is_alert else session_entry.get("last_alert_timestamp"),
+                "last_alert_snapshot": snapshot_filename_for_alert if is_alert and snapshot_filename_for_alert else session_entry.get("last_alert_snapshot")
+            })
+            session_entry["last_heartbeat_time"] = datetime.datetime.utcnow().isoformat()
+            session_entry['last_event_timestamp'] = datetime.datetime.utcnow().isoformat() 
+
+            updated_data_for_emit = { # This structure was simplified later, let's use session_entry directly
+                "session_id": session_id,
+                'data': session_entry 
+            }
+            socketio.emit('session_update', 
+                          updated_data_for_emit,
+                          room=admin_dashboard_room, namespace='/ws/admin_dashboard')
+            print(f"[DEBUG_ANALYZE_FACE] Emitted session_update for {session_id}, user {session_entry['student_username']}", flush=True)
+        else:
+            print(f"[ERROR_ANALYZE_FACE] Session ID {session_id} not found in active_sessions_store. Cannot update. User: {current_user_identity}", flush=True)
+            # This path does not return a 500, but response_data might still be the default error if this was the only path taken.
+            # However, if session_id is valid, it should be in the store from start_monitoring_session.
+            # If response_data wasn't updated due to this, it might return the default {"error": "Initial processing error"}
+            # For safety, ensure response_data is appropriate if this is a terminal state for the request.
+            if response_data.get("error") == "Initial processing error": # if not set by face logic
+                 response_data = {"error": "Session not found in active store, analysis aborted before completion.", "session_id": session_id}
+
+
+        return jsonify(response_data) # Normal successful return
+
+    except Exception as e:
+        # This will catch errors from CV functions (find_faces, detect_marks, get_eye_status) or any other unexpected logic errors.
+        print(f"[CRITICAL_ERROR_ANALYZE_FACE] Unhandled exception in analyze_face main processing: {e}", flush=True)
+        # For detailed debugging in Docker logs:
+        # import sys
+        # import traceback
+        # traceback.print_exc(file=sys.stderr) # Or use app.logger.error with traceback
+        return jsonify({"error": "An internal server error occurred during face analysis core processing.", "detail": str(e)}), 500
 
 @app.route('/api/events', methods=['GET', 'OPTIONS'])
 @jwt_required()
@@ -332,139 +376,188 @@ def get_events():
 @app.route('/api/analyze-audio', methods=['POST', 'OPTIONS'])
 @jwt_required()
 def analyze_audio_chunk():
-    print(f"[AUDIO_ANALYSIS_DEBUG] Request received for /api/analyze-audio. Method: {request.method}", flush=True)
-    print(f"[AUDIO_ANALYSIS_DEBUG] Request Headers: {request.headers}", flush=True)
-
+    # Custom debug logging for OPTIONS handling
     if request.method == 'OPTIONS':
-        # This part should ideally be handled by Flask-CORS automatically
-        # If we're hitting this, it means Flask-Cors might not be catching the preflight.
-        print("[AUDIO_ANALYSIS_DEBUG] OPTIONS request explicitly handled in route. This is unusual.", flush=True)
-        response = jsonify({'message': 'OPTIONS request successful'})
-        response.headers.add('Access-Control-Allow-Origin', '*') # Or specific origin
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
-        # Flask-CORS should add these, but let's be explicit for debugging
-        print(f"[AUDIO_ANALYSIS_DEBUG] OPTIONS Response Headers: {response.headers}", flush=True)
+        print("[AUDIO_ANALYSIS_DEBUG] Request received for /api/analyze-audio. Method: OPTIONS", flush=True)
+        # Log request headers for OPTIONS
+        # headers_str = '\n'.join([f'{key}: {value}' for key, value in request.headers.items()])
+        # print(f"[AUDIO_ANALYSIS_DEBUG] OPTIONS Request Headers:\n{headers_str}", flush=True)
+
+        # Standard CORS preflight response
+        response = jsonify({'message': 'CORS preflight for /api/analyze-audio successful'})
+        # Flask-Cors should ideally handle these headers based on the global CORS config and @cross_origin
+        # However, being explicit in an OPTIONS handler can be a fallback.
+        # response.headers.add("Access-Control-Allow-Origin", "*") # Or your specific frontend origin
+        # response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+        # response.headers.add("Access-Control-Allow-Methods", "POST,OPTIONS")
+        # print(f"[AUDIO_ANALYSIS_DEBUG] OPTIONS Response Headers set (by explicit handler):\n{response.headers}", flush=True)
+        # This explicit OPTIONS handler might conflict or be redundant if Flask-Cors is doing its job perfectly.
+        # The logs show "[AUDIO_ANALYSIS_DEBUG] OPTIONS request explicitly handled in route. This is unusual."
+        # This suggests that Flask-Cors might be trying to handle it, and then this also runs.
+        # For now, we'll keep the explicit handling but rely on Flask-Cors to add the actual headers.
         return response, 200
 
-    current_user_identity = get_jwt_identity()
-    data = request.get_json()
-    audio_chunk_base64 = data.get('audio_chunk_base64')
-    sample_rate = data.get('sample_rate')
-    session_id = data.get('session_id') # Expect session_id from client
-    client_timestamp_utc_str = data.get('client_timestamp_utc')
-
-    if not session_id:
-        print(f"[ERROR] session_id missing in analyze-audio request from user {current_user_identity}", flush=True)
-        return jsonify({"error": "session_id is required for audio analysis"}), 400
-    if not audio_chunk_base64:
-        return jsonify({"error": "No audio chunk provided"}), 400
-
-    is_alert = False
-    alert_details = {}
-    current_audio_status_for_dashboard = "Normal"
+    print("[AUDIO_ANALYSIS_DEBUG] Request received for /api/analyze-audio. Method: POST", flush=True)
+    # headers_str = '\n'.join([f'{key}: {value}' for key, value in request.headers.items()])
+    # print(f"[AUDIO_ANALYSIS_DEBUG] POST Request Headers:\n{headers_str}", flush=True)
 
     try:
-        audio_bytes = base64.b64decode(audio_chunk_base64)
-        safe_timestamp = "".join(c if c.isalnum() or c in ('.', '_') else '_' for c in client_timestamp_utc_str)
-        filename = f"{session_id}_{safe_timestamp}.wav"
-        filepath = os.path.join(AUDIO_CHUNK_DIR, filename)
+        data = request.get_json()
+        if not data:
+            print("[AUDIO_ANALYSIS_ERROR] No JSON data received or failed to parse.", flush=True)
+            return jsonify({"msg": "No JSON data received"}), 400
+
+        session_id = data.get('session_id')
+        audio_data_base64 = data.get('audio_data') # Expecting base64 encoded string
         
-        with open(filepath, 'wb') as f:
-            f.write(audio_bytes)
-        # ... (event logging for audio_chunk_saved as before) ...
-        bytes_per_sample = 2 
-        num_channels = 1 
-        approx_duration_seconds = len(audio_bytes) / (sample_rate * bytes_per_sample * num_channels) if sample_rate else None
-        event_data_saved = {
-            "timestamp": datetime.datetime.utcnow(), "client_timestamp_utc": client_timestamp_utc_str,
-            "session_id": session_id, "username": current_user_identity, "event_type": "audio_chunk_saved",
-            "details": {"filepath": filepath, "sample_rate_client": sample_rate, "size_bytes": len(audio_bytes), "approx_duration_seconds": approx_duration_seconds}
-        }
-        events_collection.insert_one(event_data_saved)
-
-        y, sr_librosa = librosa.load(io.BytesIO(audio_bytes), sr=None)
-        rms = librosa.feature.rms(y=y)[0]
-        dbfs = librosa.amplitude_to_db(rms, ref=1.0)
-        max_dbfs = np.max(dbfs)
-        avg_dbfs = np.mean(dbfs)
-
-        if max_dbfs > LOUD_NOISE_DBFS_THRESHOLD:
-            current_audio_status_for_dashboard = f"Loud Noise Detected ({max_dbfs:.2f} dBFS)"
-            is_alert = True
-            alert_details = {"type": "loud_noise_detected", "message": current_audio_status_for_dashboard, "peak_dbfs": float(max_dbfs)}
-            # OLD event logging for loud_noise_detected:
-            # loud_noise_event_data = {
-            #     "timestamp": datetime.datetime.utcnow(), "client_timestamp_utc": client_timestamp_utc_str,
-            #     "session_id": session_id, "username": current_user_identity, "event_type": "loud_noise_detected",
-            #     "details": {"peak_rms_dbfs": float(max_dbfs), "average_rms_dbfs": float(avg_dbfs), "rms_threshold_dbfs_used": LOUD_NOISE_DBFS_THRESHOLD, "detected_sample_rate": sr_librosa, "original_filepath": filepath}
-            # }
-            # events_collection.insert_one(loud_noise_event_data)
-
-        # --- NEW: Save detailed alert to alerts_collection if an audio alert occurred ---
-        if is_alert and session_id: # Ensure session_id is present for alert context
-            alert_doc = {
-                "alert_id": str(uuid.uuid4()),
-                "session_id": session_id,
-                "student_username": current_user_identity, # Username from JWT
-                "student_id": None, # Placeholder, will be filled if session_id is in active_sessions_store
-                "timestamp": datetime.datetime.utcnow(), # Use current UTC time for alert
-                "alert_type": alert_details.get("type", "unknown_audio_alert"),
-                "severity": "Medium", # Default severity for loud noise, can be adjusted
-                "details": alert_details.get("message", "No specific details."),
-                "snapshot_filename": None # No snapshot for audio alerts
-            }
-            
-            # Try to get student_id from active_sessions_store if available
-            if session_id in active_sessions_store:
-                alert_doc["student_id"] = active_sessions_store[session_id].get("student_id")
-                alert_doc["student_username"] = active_sessions_store[session_id].get("student_username", current_user_identity)
-
-            alerts_collection.insert_one(alert_doc)
-            print(f"[ALERT_DB] Inserted audio alert {alert_doc['alert_id']} for session {session_id}", flush=True)
-
-        # --- Update active_sessions_store and broadcast (Task 3.3.2 / 3.4.3) ---
-        if session_id in active_sessions_store:
-            session_entry = active_sessions_store[session_id]
-            session_entry["latest_audio_event_summary"] = current_audio_status_for_dashboard
-            
-            if is_alert:
-                session_entry["unread_alert_count"] = session_entry.get("unread_alert_count", 0) + 1
-                session_entry["last_alert_timestamp"] = datetime.datetime.utcnow().isoformat()
-
-            # Construct snapshot URL for broadcast payload - reuse from session if available
-            snapshot_url_for_broadcast = None
-            if session_entry.get("latest_face_snapshot_filename"):
-                 snapshot_url_for_broadcast = f"/api/media/snapshots/{session_entry['latest_face_snapshot_filename']}"
-
-            websocket_payload = {
-                "session_id": session_id,
-                "student_id": session_entry["student_id"],
-                "student_name": session_entry["student_username"],
-                "last_snapshot_url": snapshot_url_for_broadcast, # Include last known snapshot
-                "latest_status": session_entry["latest_face_analysis_status"], # Include last known face status
-                "latest_audio_event": session_entry["latest_audio_event_summary"], # Updated audio status
-                "unread_alert_count": session_entry["unread_alert_count"],
-                "last_alert_timestamp": session_entry["last_alert_timestamp"],
-                "new_alert_details": alert_details if is_alert else None
-            }
-            socketio.emit('student_session_update', websocket_payload, room=admin_dashboard_room, namespace='/ws/admin_dashboard')
-            print(f"[SocketIO] Broadcast 'student_session_update' for audio analysis on session {session_id}", flush=True)
+        print(f"[AUDIO_ANALYSIS_DEBUG] Received session_id: {session_id}", flush=True)
+        if audio_data_base64:
+            print(f"[AUDIO_ANALYSIS_DEBUG] Received audio_data (first 100 chars): {audio_data_base64[:100]}...", flush=True)
+            print(f"[AUDIO_ANALYSIS_DEBUG] Type of audio_data: {type(audio_data_base64)}", flush=True)
         else:
-            print(f"[Session] No active session found for {session_id} during audio analysis. Cannot update dashboard store.", flush=True)
+            print("[AUDIO_ANALYSIS_WARNING] No audio_data in request payload.", flush=True)
 
-        return jsonify({"message": "Audio chunk processed.", "max_dbfs": f"{max_dbfs:.2f}"}), 200
+        if not session_id:
+            print("[AUDIO_ANALYSIS_ERROR] session_id is missing from request.", flush=True)
+            return jsonify({"msg": "session_id is required"}), 400
+        if not audio_data_base64:
+            print("[AUDIO_ANALYSIS_ERROR] audio_data is missing from request.", flush=True)
+            return jsonify({"msg": "audio_data is required"}), 400
+
+        current_user = get_jwt_identity()
+        print(f"[AUDIO_ANALYSIS_INFO] Processing audio for user: {current_user}, session: {session_id}", flush=True)
+
+        # Ensure audio_files directory exists
+        os.makedirs(AUDIO_CHUNK_DIR, exist_ok=True)
+        
+        # Decode Base64 audio data
+        try:
+            audio_bytes = base64.b64decode(audio_data_base64)
+            print(f"[AUDIO_ANALYSIS_DEBUG] Successfully decoded base64 audio data. Bytes length: {len(audio_bytes)}", flush=True)
+        except base64.binascii.Error as b64_error:
+            print(f"[AUDIO_ANALYSIS_ERROR] Base64 decoding failed: {str(b64_error)}", flush=True)
+            # import traceback
+            # print(traceback.format_exc(), flush=True) # Temporarily add for more detail if needed
+            return jsonify({"msg": "Invalid base64 audio data"}), 400
+        except Exception as e:
+            print(f"[AUDIO_ANALYSIS_ERROR] Unexpected error during base64 decode: {str(e)}", flush=True)
+            import traceback
+            print(traceback.format_exc(), flush=True)
+            return jsonify({"msg": "Error decoding audio data"}), 500
+
+
+        # Save the audio chunk to a temporary WAV file
+        # Generate a unique filename to avoid collisions if multiple requests are processed concurrently.
+        # Adding timestamp and random element for uniqueness.
+        timestamp_str = datetime.datetime.now().strftime("%Y%m%d%H%M%S%f")
+        random_suffix = uuid.uuid4().hex[:6]
+        temp_audio_filename = f"temp_audio_chunk_{session_id}_{timestamp_str}_{random_suffix}.wav"
+        temp_audio_filepath = os.path.join(AUDIO_CHUNK_DIR, temp_audio_filename)
+        
+        print(f"[AUDIO_ANALYSIS_DEBUG] Attempting to save decoded audio to: {temp_audio_filepath}", flush=True)
+        try:
+            with open(temp_audio_filepath, 'wb') as audio_file:
+                audio_file.write(audio_bytes)
+            print(f"[AUDIO_ANALYSIS_INFO] Audio chunk saved to {temp_audio_filepath}", flush=True)
+        except IOError as io_err:
+            print(f"[AUDIO_ANALYSIS_ERROR] Failed to write audio file {temp_audio_filepath}: {str(io_err)}", flush=True)
+            # import traceback
+            # print(traceback.format_exc(), flush=True)
+            return jsonify({"msg": "Failed to save audio data for analysis"}), 500
+        except Exception as e:
+            print(f"[AUDIO_ANALYSIS_ERROR] Unexpected error saving audio file {temp_audio_filepath}: {str(e)}", flush=True)
+            import traceback
+            print(traceback.format_exc(), flush=True)
+            return jsonify({"msg": "Unexpected error saving audio data"}), 500
+
+        # Analyze the audio file for sound events
+        # This function should return a list of detected event types or an empty list
+        try:
+            print(f"[AUDIO_ANALYSIS_DEBUG] Calling detect_sound_events for {temp_audio_filepath}", flush=True)
+            detected_events = detect_sound_events(temp_audio_filepath) # from sound_event_detection.py
+            print(f"[AUDIO_ANALYSIS_INFO] Detected sound events: {detected_events} in file {temp_audio_filepath}", flush=True)
+        except Exception as e:
+            print(f"[AUDIO_ANALYSIS_ERROR] Error during detect_sound_events for {temp_audio_filepath}: {str(e)}", flush=True)
+            import traceback
+            print(traceback.format_exc(), flush=True)
+            # Clean up the temp file even if analysis fails
+            if os.path.exists(temp_audio_filepath):
+                try:
+                    os.remove(temp_audio_filepath)
+                    print(f"[AUDIO_ANALYSIS_DEBUG] Cleaned up temp audio file after error: {temp_audio_filepath}", flush=True)
+                except Exception as rm_err:
+                    print(f"[AUDIO_ANALYSIS_ERROR] Failed to cleanup temp audio file {temp_audio_filepath} after error: {str(rm_err)}", flush=True)
+            return jsonify({"msg": f"Error analyzing audio: {str(e)}"}), 500
+        finally:
+            # Ensure the temporary file is deleted after analysis (or if an error occurs before this)
+            # This finally block might be redundant if the specific error handling above also cleans up.
+            if os.path.exists(temp_audio_filepath):
+                try:
+                    os.remove(temp_audio_filepath)
+                    # print(f"[AUDIO_ANALYSIS_DEBUG] Cleaned up temp audio file: {temp_audio_filepath}", flush=True)
+                except Exception as e:
+                    print(f"[AUDIO_ANALYSIS_ERROR] Error cleaning up temp audio file {temp_audio_filepath}: {str(e)}", flush=True)
+        
+        # Process detected events: save alerts, emit SocketIO events, etc.
+        # This part is similar to how face analysis alerts are handled.
+        alert_details_list = []
+        if detected_events:
+            print(f"[AUDIO_ANALYSIS_INFO] Processing {len(detected_events)} detected audio events for session {session_id}.", flush=True)
+            for event_type in detected_events:
+                alert_id = str(uuid.uuid4())
+                alert_data = {
+                    "_id": alert_id,
+                    "session_id": session_id,
+                    "student_username": current_user,
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "alert_type": "audio_event",
+                    "details": {
+                        "event": event_type,
+                        "description": f"Sound event detected: {event_type}",
+                        "source_file": temp_audio_filename # Store the temp filename for reference if needed
+                    },
+                    "severity": "medium",  # Or determine severity based on event_type
+                    "is_dismissed": False,
+                    "snapshot_filename": None # No visual snapshot for audio events
+                }
+                try:
+                    alerts_collection.insert_one(alert_data)
+                    print(f"[AUDIO_ANALYSIS_INFO] Audio alert for event '{event_type}' (ID: {alert_id}) saved to DB for session {session_id}.", flush=True)
+                    
+                    # Prepare alert for SocketIO emission (without ObjectId for JSON serialization)
+                    alert_for_socket = alert_data.copy()
+                    # alert_for_socket['_id'] = str(alert_for_socket['_id']) # Already a string from uuid
+                    
+                    socketio.emit('new_alert', alert_for_socket, room=admin_dashboard_room, namespace='/ws/admin_dashboard')
+                    print(f"[AUDIO_ANALYSIS_INFO] Emitted 'new_alert' via SocketIO for audio event '{event_type}' (Alert ID: {alert_id}) to admin dashboard for session {session_id}.", flush=True)
+                    alert_details_list.append(alert_data['details'])
+                except Exception as e:
+                    print(f"[AUDIO_ANALYSIS_ERROR] Failed to save/emit audio alert for event '{event_type}' (session {session_id}): {str(e)}", flush=True)
+                    import traceback
+                    print(traceback.format_exc(), flush=True)
+                    # Continue processing other events if one fails
+
+            # Also update the main session document with the latest audio alert info
+            update_session_with_event(session_id, "audio_event", {"last_audio_events": alert_details_list})
+            print(f"[AUDIO_ANALYSIS_INFO] Updated session {session_id} with latest audio event details.", flush=True)
+        else:
+            print(f"[AUDIO_ANALYSIS_INFO] No significant sound events detected in chunk for session {session_id}.", flush=True)
+
+        # Return a summary of detected events or a success message
+        return jsonify({
+            "msg": "Audio chunk analyzed successfully.",
+            "session_id": session_id,
+            "detected_events": detected_events, # List of event types
+            "alerts_created": len(alert_details_list)
+        }), 200
 
     except Exception as e:
-        # ... (error logging as before) ...
-        error_event_data = {
-            "timestamp": datetime.datetime.utcnow(), "client_timestamp_utc": client_timestamp_utc_str,
-            "session_id": session_id, "username": current_user_identity,
-            "event_type": "audio_processing_error", "details": {"error_message": str(e), "stage": "rms_analysis_or_loud_noise"}
-        }
-        try: events_collection.insert_one(error_event_data) 
-        except Exception as db_e: print(f"[ERROR] DB log fail: {db_e}", flush=True)
-        return jsonify({"error": "Failed to process audio chunk", "details": str(e)}), 500
+        # This is a catch-all for any errors not caught by more specific handlers above
+        # (e.g., issues with request.get_json(), unexpected errors before specific try-except blocks)
+        print(f"[AUDIO_ANALYSIS_FATAL_ERROR] An unexpected error occurred in analyze_audio_chunk for session {session_id if 'session_id' in locals() else 'unknown'}: {str(e)}", flush=True)
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        return jsonify({"msg": "An unexpected error occurred during audio analysis.", "error": str(e)}), 500
 
 @app.route('/api/audio_files/<path:filename>', methods=['GET', 'OPTIONS'])
 @jwt_required()
@@ -494,6 +587,18 @@ def get_audio_file(filename):
 @app.route('/api/admin/alerts', methods=['GET', 'OPTIONS'])
 @jwt_required()
 def get_admin_alerts():
+    # Explicitly handle OPTIONS requests first
+    if request.method == 'OPTIONS':
+        # This response should be simple and just acknowledge the preflight
+        response = jsonify({'message': 'OPTIONS request successful for /api/admin/alerts'})
+        # Flask-CORS should ideally handle adding all necessary headers, 
+        # but we can be explicit for debugging or if it's missed.
+        # response.headers.add('Access-Control-Allow-Origin', '*') # Or your specific frontend origin
+        # response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        # response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+        # response.headers.add('Access-Control-Allow-Credentials', 'true') # If using credentials
+        return response, 200 # Important: Return 200 OK for OPTIONS
+
     claims = get_jwt()
     user_role = claims.get("role")
     if user_role != 'admin':
@@ -702,42 +807,54 @@ def handle_admin_disconnect():
 @app.route('/api/student/monitoring/start', methods=['POST', 'OPTIONS'])
 @jwt_required()
 def start_monitoring_session():
-    data = request.get_json()
-    session_id = data.get('session_id')
-    # exam_id = data.get('exam_id') # Optional, can be added later
+    if request.method == 'OPTIONS':
+        print("[DEBUG_CORS] OPTIONS request explicitly handled for /api/student/monitoring/start.", flush=True)
+        response = jsonify({'message': 'OPTIONS request successful for /api/student/monitoring/start'})
+        return response, 200
 
-    if not session_id:
+    data = request.get_json()
+    new_session_id = data.get('session_id') # Frontend suggests this session_id
+
+    if not new_session_id:
         return jsonify({"msg": "session_id is required"}), 400
 
     current_user = get_jwt_identity() # This is the username
-    claims = get_jwt()
-    # user_role = claims.get("role", "student") # Not strictly needed here, but good for context
+    
+    # --- BEGIN MODIFICATION: Clean up existing sessions for the same user ---
+    existing_session_ids_for_user = []
+    for sid, sdata in list(active_sessions_store.items()): # Iterate over a copy for safe deletion
+        if sdata.get("student_username") == current_user:
+            existing_session_ids_for_user.append(sid)
 
-    # In a real scenario, you might want to fetch more student details from DB
-    # For now, username from JWT is sufficient as student_username.
+    for old_sid in existing_session_ids_for_user:
+        if old_sid == new_session_id: # Should not happen if frontend generates unique IDs, but good check
+            continue 
+        if old_sid in active_sessions_store: # Double check it still exists
+            del active_sessions_store[old_sid]
+            print(f"[Session Cleanup] Implicitly stopped and removed old session '{old_sid}' for user '{current_user}' before starting new session '{new_session_id}'.", flush=True)
+            socketio.emit('student_session_ended', {"session_id": old_sid, "reason": "new_session_started"}, room=admin_dashboard_room, namespace='/ws/admin_dashboard')
+            print(f"[SocketIO] Broadcast 'student_session_ended' (implicit due to new session) for old session {old_sid} to room {admin_dashboard_room}", flush=True)
+    # --- END MODIFICATION ---
+
 
     session_data = {
-        "student_id": current_user, # Assuming username is used as student_id here
+        "student_id": current_user, 
         "student_username": current_user,
         "monitoring_start_time": datetime.datetime.utcnow().isoformat(),
         "last_heartbeat_time": datetime.datetime.utcnow().isoformat(),
-        # Initialize other dashboard-relevant fields (Task 3.3.1)
         "latest_face_analysis_status": "Monitoring starting...",
         "latest_face_snapshot_filename": None,
         "latest_audio_event_summary": "Normal",
         "unread_alert_count": 0,
         "last_alert_timestamp": None
     }
-    active_sessions_store[session_id] = session_data
-    print(f"[Session] Student '{current_user}' started monitoring session: {session_id}", flush=True)
+    active_sessions_store[new_session_id] = session_data # Use the new_session_id provided by frontend
+    print(f"[Session] Student '{current_user}' started monitoring session: {new_session_id}", flush=True)
     
-    # Broadcast to admin dashboard (Task 3.4.3)
-    # Construct payload similar to Endpoint 1 of Task 3.1
     admin_payload = {
-        "session_id": session_id,
+        "session_id": new_session_id,
         "student_id": session_data["student_id"],
         "student_name": session_data["student_username"],
-        # "exam_id": exam_id, # if used
         "monitoring_start_time": session_data["monitoring_start_time"],
         "last_snapshot_url": None, # Initially no snapshot
         "latest_status": session_data["latest_face_analysis_status"],
@@ -745,9 +862,9 @@ def start_monitoring_session():
         "last_alert_timestamp": session_data["last_alert_timestamp"]
     }
     socketio.emit('new_student_session_started', admin_payload, room=admin_dashboard_room, namespace='/ws/admin_dashboard')
-    print(f"[SocketIO] Broadcast 'new_student_session_started' for session {session_id} to room {admin_dashboard_room}", flush=True)
+    print(f"[SocketIO] Broadcast 'new_student_session_started' for session {new_session_id} to room {admin_dashboard_room}", flush=True)
 
-    return jsonify({"msg": "Monitoring session started", "session_id": session_id}), 200
+    return jsonify({"msg": "Monitoring session started", "session_id": new_session_id}), 200
 
 @app.route('/api/student/monitoring/heartbeat', methods=['POST', 'OPTIONS'])
 @jwt_required()
@@ -799,6 +916,12 @@ def stop_monitoring_session():
 @app.route('/api/admin/dashboard/active_sessions', methods=['GET', 'OPTIONS'])
 @jwt_required()
 def get_active_dashboard_sessions():
+    # Explicitly handle OPTIONS requests first
+    if request.method == 'OPTIONS':
+        response = jsonify({'message': 'OPTIONS request successful for /api/admin/dashboard/active_sessions'})
+        # Flask-CORS should handle adding necessary headers based on global config
+        return response, 200
+
     claims = get_jwt()
     user_role = claims.get("role")
 
@@ -824,7 +947,7 @@ def get_active_dashboard_sessions():
 
         sessions_list.append({
             "session_id": session_id,
-            "student_id": session_data["student_id"],
+            "student_id": session_data.get("student_id", "Unknown Student"), # Safely access student_id
             "student_name": session_data["student_username"],
             # "exam_id": session_data.get("exam_id"), # if used
             "monitoring_start_time": session_data["monitoring_start_time"],

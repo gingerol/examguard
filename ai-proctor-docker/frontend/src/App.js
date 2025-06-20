@@ -33,6 +33,8 @@ import { Tabs as BsTabs, Tab as BsTab } from 'react-bootstrap'; // Explicitly al
 import AdminDashboard from './components/AdminDashboard/AdminDashboard';
 // NEW: Import the AdminAlertLog component
 import AdminAlertLog from './components/AdminAlertLog/AdminAlertLog';
+// NEW: Import StudentSessionDetail component
+import StudentSessionDetail from './components/AdminDashboard/StudentSessionDetail';
 
 /* eslint-disable jsx-a11y/media-has-caption */
 
@@ -123,9 +125,10 @@ const StudentMonitorPage = ({
   isMonitoring,
   toggleMonitoring,
   isTogglingVideo,
+  isSessionStarting,
   toggleAudioMonitoring,
   isAudioMonitoring,
-  isTogglingAudio, // Added this prop
+  isTogglingAudio,
   syncOfflineData,
   offlineMode,
   offlineData,
@@ -147,7 +150,7 @@ const StudentMonitorPage = ({
           <Button 
             variant="contained" 
             onClick={toggleMonitoring} 
-            disabled={isTogglingVideo}
+            disabled={isTogglingVideo || (isMonitoring && isSessionStarting)}
             color={isMonitoring ? "error" : "success"}
             sx={{ mr: 1 }}
           >
@@ -234,7 +237,7 @@ const MainContentComponent = ({
   // Props for AuthPage
   showRegister, authMessage, handleRegister, handleLogin, authUsername, setAuthUsername, authPassword, setAuthPassword, setShowRegister, setAuthMessage, // Added setAuthMessage
   // Props for StudentMonitorPage
-  sessionId, isMonitoring, toggleMonitoring, isTogglingVideo, toggleAudioMonitoring, isAudioMonitoring, isTogglingAudio, syncOfflineData, offlineMode, offlineData, webcamRef, status, alerts, activeTab, setActiveTab, fetchEvents, events
+  sessionId, isMonitoring, toggleMonitoring, isTogglingVideo, isSessionStarting, toggleAudioMonitoring, isAudioMonitoring, isTogglingAudio, syncOfflineData, offlineMode, offlineData, webcamRef, status, alerts, activeTab, setActiveTab, fetchEvents, events
 }) => {
   if (!currentUser) {
     return (
@@ -263,6 +266,7 @@ const MainContentComponent = ({
             isMonitoring={isMonitoring}
             toggleMonitoring={toggleMonitoring}
             isTogglingVideo={isTogglingVideo}
+            isSessionStarting={isSessionStarting}
             toggleAudioMonitoring={toggleAudioMonitoring}
             isAudioMonitoring={isAudioMonitoring}
             isTogglingAudio={isTogglingAudio}
@@ -283,6 +287,7 @@ const MainContentComponent = ({
         <>
           <Route path="/admin/dashboard" element={<AdminDashboard currentUser={currentUser} />} />
           <Route path="/admin/alerts" element={<AdminAlertLog currentUser={currentUser} />} />
+          <Route path="/admin/session/:sessionId" element={<StudentSessionDetail />} />
         </>
       )}
       <Route path="*" element={<Navigate to={determineRedirectPath()} replace />} />
@@ -294,9 +299,10 @@ function App() {
   const webcamRef = useRef(null);
 
   // Attempt to load state from sessionStorage, otherwise use defaults
-  const [sessionId, setSessionId] = useState(() => {
+  const [sessionId, setSessionIdInternal] = useState(() => {
     const storedSessionId = sessionStorage.getItem('proctoring_sessionId');
-    return storedSessionId || `session_${new Date().getTime()}`;
+    // Initialize with a placeholder; this will be updated by startStudentSession
+    return storedSessionId || `session_${new Date().getTime()}_${Math.random().toString(36).substr(2, 9)}`;
   });
 
   const [isMonitoring, setIsMonitoring] = useState(() => {
@@ -334,6 +340,12 @@ function App() {
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authMessage, setAuthMessage] = useState({ type: '', text: '' });
+
+  // NEW: State for session start pending
+  const [isSessionStarting, setIsSessionStarting] = useState(false);
+
+  // To store interval IDs for clearing
+  // const imageCaptureIntervalRef = useRef(null); // REMOVED - This specific ref was unused
 
   // Effect to save sessionId to sessionStorage whenever it changes
   useEffect(() => {
@@ -446,40 +458,41 @@ function App() {
   // NEW: Function to start student monitoring session via API
   const startStudentSession = async () => {
     if (!currentUser || !currentUser.token) {
-      addAlert('Authentication token not found. Cannot start session.', 'error');
-      return null;
+      addAlert("Authentication required to start a session.", "error");
+      return;
     }
+    setIsSessionStarting(true); // Set starting flag
+    const localGeneratedSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`[Session Start] Attempting to start student session with frontend-generated ID: ${localGeneratedSessionId}`);
+
     try {
-      // The backend generates the session_id, so we don't send one from frontend initially for /start
-      // The backend's /start endpoint in app.py was modified to generate it if not provided.
-      // Let's ensure we don't send a pre-generated one unless it's a resume scenario (not handled yet)
-      
-      // Generate session_id on the frontend as the backend expects it.
-      const newSessionId = `session_${new Date().getTime()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const response = await axios.post('http://localhost:5000/api/student/monitoring/start', 
-        { session_id: newSessionId }, // Send the generated session_id
+      // The backend will generate/confirm the actual session_id
+      const response = await axios.post('http://localhost:5000/api/student/monitoring/start',
+        { session_id: localGeneratedSessionId }, // Send the frontend-generated ID as a suggestion or for tracking
         {
           headers: { Authorization: `Bearer ${currentUser.token}` }
         }
       );
-      if (response.data && response.data.session_id) {
-        setSessionId(response.data.session_id); // Update state with backend-confirmed (or potentially modified) session_id
-        addAlert(`Monitoring session ${response.data.session_id} started with backend.`, 'success');
-        return response.data.session_id;
+      const newSessionIdFromServer = response.data.session_id;
+      const monitoringStartTime = response.data.monitoring_start_time;
+      console.log(`[Session Start] Backend confirmed session. Frontend ID: ${localGeneratedSessionId}, Backend ID: ${newSessionIdFromServer}, Start Time: ${monitoringStartTime}`);
+
+      if (newSessionIdFromServer) {
+        setSessionIdInternal(newSessionIdFromServer); // Update with backend-confirmed session ID
+        setStatus(`Monitoring session ${newSessionIdFromServer} started.`);
+        addAlert(`Monitoring session ${newSessionIdFromServer} started successfully.`, "success");
+        setIsSessionStarting(false); // Clear starting flag
+        return newSessionIdFromServer; // Return the confirmed ID
       } else {
-        addAlert('Failed to start session with backend: No session_id received.', 'error');
-        console.error('Backend response missing session_id:', response.data);
+        console.error("[Session Start] Backend did not return a session_id.", response.data);
+        addAlert("Could not start monitoring session with backend: No session ID returned.", "error");
+        setIsSessionStarting(false); // Clear starting flag
         return null;
       }
     } catch (error) {
-      console.error("Error starting student monitoring session:", error);
-      const errorMsg = error.response?.data?.msg || "Failed to start proctoring session with backend.";
-      addAlert(errorMsg, 'error');
-      if (error.response?.status === 401) {
-         addAlert('Authentication error. Please log in again.', 'error');
-         // Consider calling handleLogout() here or redirecting to login
-      }
+      console.error("[Session Start] Error starting student session:", error.response ? error.response.data : error.message);
+      addAlert(error.response?.data?.msg || "Could not start new monitoring session with backend.", "error");
+      setIsSessionStarting(false); // Clear starting flag
       return null;
     }
   };
@@ -490,10 +503,11 @@ function App() {
       addAlert('Authentication token not found. Cannot stop session.', 'error');
       return false;
     }
+    // Ensure currentSessionId is a backend-confirmed ID, not a placeholder
     if (!currentSessionId || currentSessionId.startsWith('session_')) {
-        addAlert('No active backend session to stop.', 'warning');
-        console.warn("Attempted to stop session without a valid backend session ID", currentSessionId);
-        return true; // Consider it "stopped" from frontend perspective if no valid backend ID
+        addAlert('Cannot stop session: Valid session ID from backend not yet available or session not properly started.', 'error');
+        console.warn("Attempted to stop session without a valid backend-confirmed session ID. Current ID:", currentSessionId);
+        return false; // Indicate failure to stop with backend
     }
     try {
       await axios.post('http://localhost:5000/api/student/monitoring/stop', 
@@ -518,51 +532,65 @@ function App() {
   };
 
   // eslint-disable-next-line no-unused-vars
-  const toggleMonitoring = useCallback(async () => { // Made async
-    if (isTogglingVideo) return;
+  const toggleMonitoring = async () => {
+    console.log(`[DEBUG_TOGGLE] Current session ID for toggle: ${sessionId}`);
     setIsTogglingVideo(true);
 
-    const newIsMonitoring = !isMonitoring; // Determine desired new state first
+    if (isMonitoring) { // Trying to stop
+      console.log(`[TogglePrevent] Attempting to STOP monitoring. isSessionStarting: ${isSessionStarting}`);
+      // Safeguard: Prevent stopping if the session is still in the process of starting.
+      if (isSessionStarting) {
+        addAlert('Cannot stop: Session is still in the process of starting. Please wait.', 'warning');
+        console.warn('[TogglePrevent] Stop prevented: Session is still starting.');
+        setIsTogglingVideo(false);
+        return;
+      }
 
-    if (newIsMonitoring) { // ---- Attempting to START monitoring ----
+      // Check if sessionId is actually available. This is a basic sanity check.
+      if (!sessionId) {
+        addAlert('Cannot stop: Session ID is missing.', 'error');
+        console.warn('[TogglePrevent] Stop prevented: sessionId is missing.');
+        setIsTogglingVideo(false);
+        return;
+      }
+      
+      console.log(`[TogglePrevent] Proceeding to stop session: ${sessionId}`);
+      await stopStudentSession(sessionId);
+      setStatus("Video Monitoring Off"); // More descriptive
+      setIsMonitoring(false);
+      // setSessionIdInternal(null); // Explicitly clear session ID on stop. This is handled in stopStudentSession.
+      addAlert("Video monitoring stopped.", "info");
+      // Stop audio monitoring as well if it's running
+      if (isAudioMonitoring) {
+        await toggleAudioMonitoring(); // This will handle its own state and snackbars
+      }
+    } else { // Trying to start
       setStatus('Starting monitoring session with backend...');
       const backendSessionId = await startStudentSession();
       if (backendSessionId) {
-        setIsMonitoring(true);
+        // Successfully started session with backend, now set monitoring to true
+        setIsMonitoring(true); // MOVED HERE
         setStatus('Monitoring started.');
         addAlert('Video monitoring started.', 'info');
       } else {
         // Failed to start backend session
         setStatus('Failed to start backend session. Monitoring off.');
-        setIsMonitoring(false); // Ensure it's off
+        setIsMonitoring(false); // Ensure it's off if session start failed
         addAlert('Could not start video monitoring with backend.', 'error');
-      }
-    } else { // ---- Attempting to STOP monitoring ----
-      setStatus('Stopping monitoring session with backend...');
-      const stoppedSuccessfully = await stopStudentSession(sessionId);
-      if (stoppedSuccessfully) {
-        setIsMonitoring(false);
-        setStatus('Monitoring stopped.');
-        addAlert('Video monitoring stopped.', 'info');
-      } else {
-        // Failed to stop backend session, but we should still reflect frontend state
-        // Or, decide if frontend should remain "stuck" in monitoring state if backend stop fails
-        setIsMonitoring(false); // Forcing UI to reflect stop intent
-        setStatus('Error stopping backend session. Monitoring off on frontend.');
-        addAlert('Could not cleanly stop video monitoring with backend. Please check connection.', 'warning');
       }
     }
     setIsTogglingVideo(false);
-  }, [isTogglingVideo, addAlert, currentUser, isMonitoring, sessionId]); // Added currentUser, isMonitoring, sessionId
+  };
 
   const captureAndAnalyze = useCallback(async () => {
     if (!webcamRef.current) {
-      console.warn("Webcam ref not available yet for captureAndAnalyze.");
+      console.warn("Webcam ref not available for captureAndAnalyze.");
       return;
     }
     const imageSrc = webcamRef.current.getScreenshot();
     if (!imageSrc) {
-      addAlert('Could not get screenshot from webcam.', 'warning');
+      addAlert('Could not get screenshot from webcam. Webcam might be initializing or blocked.', 'warning');
+      console.warn("getScreenshot() returned null or empty.");
       return;
     }
 
@@ -919,14 +947,29 @@ function App() {
   }, [offlineData, addAlert, sessionId, setStatus, setOfflineData, setOfflineMode]);
   
   useEffect(() => {
-    let interval;
+    let intervalId = null;
+    console.log(`[CaptureIntervalEffect] Evaluating. isMonitoring: ${isMonitoring}, sessionId: ${sessionId}`);
+
     if (isMonitoring) {
-      captureAndAnalyze(); // Analyze immediately when monitoring starts
-      interval = setInterval(captureAndAnalyze, 5000); // Then every 5 seconds
+      if (sessionId) {
+        console.log(`[CaptureIntervalEffect] Starting interval for session: ${sessionId}`);
+        captureAndAnalyze(); // Initial call
+        intervalId = setInterval(captureAndAnalyze, 5000);
+      } else {
+        console.warn(`[CaptureIntervalEffect] Monitoring is ON, but sessionId is null/falsy: ${sessionId}. Interval NOT started.`);
+      }
+    } else {
+      console.log("[CaptureIntervalEffect] Monitoring is OFF. Ensuring interval is cleared.");
     }
-    return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMonitoring, offlineMode, sessionId]); // Added sessionId to captureAndAnalyze deps
+
+    // Cleanup function
+    return () => {
+      if (intervalId) {
+        console.log(`[CaptureIntervalEffect] Clearing interval ID: ${intervalId}`);
+        clearInterval(intervalId);
+      }
+    };
+  }, [isMonitoring, sessionId, captureAndAnalyze]); // captureAndAnalyze is memoized
   
   const fetchEvents = async () => {
     // if (!sessionId) return; // Removed this check, admin might not have a relevant session_id to filter by initially
@@ -1071,6 +1114,7 @@ function App() {
         isMonitoring={isMonitoring}
         toggleMonitoring={toggleMonitoring}
         isTogglingVideo={isTogglingVideo}
+        isSessionStarting={isSessionStarting}
         toggleAudioMonitoring={toggleAudioMonitoring}
         isAudioMonitoring={isAudioMonitoring}
         isTogglingAudio={isTogglingAudio}

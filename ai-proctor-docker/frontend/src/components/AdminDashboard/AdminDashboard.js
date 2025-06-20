@@ -28,11 +28,11 @@ const AdminDashboard = ({ currentUser }) => {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('info'); // 'success', 'error', 'warning', 'info'
 
-  const handleShowSnackbar = (message, severity = 'info') => {
+  const handleShowSnackbar = useCallback((message, severity = 'info') => {
     setSnackbarMessage(message);
     setSnackbarSeverity(severity);
     setSnackbarOpen(true);
-  };
+  }, []);
 
   const handleCloseSnackbar = (event, reason) => {
     if (reason === 'clickaway') {
@@ -54,7 +54,7 @@ const AdminDashboard = ({ currentUser }) => {
       return [newSessionData, ...prevSessions];
     });
     handleShowSnackbar(`New session started: ${newSessionData.student_name || 'Unknown Student'}`, 'info');
-  }, []);
+  }, [handleShowSnackbar]);
 
   const handleSessionEnded = useCallback((data) => {
     console.log("[SocketIO] Received student_session_ended:", data);
@@ -63,7 +63,7 @@ const AdminDashboard = ({ currentUser }) => {
     // This requires sessions to be up-to-date or pass student_name in event
     // For simplicity, we'll just use session_id for now if name isn't readily available.
     handleShowSnackbar(`Session ${data.session_id} ended.`, 'warning');
-  }, []);
+  }, [handleShowSnackbar]);
 
   const handleSessionUpdate = useCallback((updatedSessionData) => {
     console.log("[SocketIO] Received student_session_update:", updatedSessionData);
@@ -86,7 +86,7 @@ const AdminDashboard = ({ currentUser }) => {
       );
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps 
-  }, []); // REMOVED [sessions] dependency to prevent loops. Notification logic might need adjustment if direct comparison to previous state is vital here.
+  }, [handleShowSnackbar]);
 
   useEffect(() => {
     const fetchActiveSessions = async () => {
@@ -95,14 +95,17 @@ const AdminDashboard = ({ currentUser }) => {
       try {
         const token = currentUser?.token;
         if (!token) {
-            setError("Authentication token not found. Please login again.");
+            console.error("[Auth Error] Authentication token not found for fetching sessions.");
+            handleShowSnackbar("Authentication token not found. Please login again.", "error");
             setIsLoading(false);
+            setSessions([]); // Clear sessions if auth fails
             return;
         }
         const response = await axios.get('http://localhost:5000/api/admin/dashboard/active_sessions', {
             headers: { Authorization: `Bearer ${token}` }
         });
         setSessions(response.data || []);
+        setError(null); // Clear error on successful fetch
       } catch (err) {
         console.error("Error fetching active sessions:", err);
         let errorMessage = "Could not fetch active sessions.";
@@ -116,75 +119,90 @@ const AdminDashboard = ({ currentUser }) => {
         } else if (err.request) {
           errorMessage = "Network error: Could not connect to the server.";
         }
-        setError(errorMessage);
-        setSessions([]);
+        setError(errorMessage); // Set specific error message
+        handleShowSnackbar(errorMessage, "error");
+        setSessions([]); // Clear sessions on error
       }
       setIsLoading(false);
     };
 
     fetchActiveSessions();
 
+    // WebSocket connection logic
     const tokenForSocket = currentUser?.token;
-    if (tokenForSocket && !socketRef.current) {
-      console.log("[SocketIO] Attempting to connect to WebSocket with token...");
-      const newSocket = io('http://localhost:5000/ws/admin_dashboard', {
-        query: { token: `Bearer ${tokenForSocket}` },
-        transports: ['websocket']
-      });
 
-      newSocket.on('connect', () => {
-        console.log(`[SocketIO] Connected to admin dashboard namespace with SID: ${newSocket.id}`);
-        // Optionally request connection ack if backend doesn't send it automatically
-        // newSocket.emit('request_connection_ack'); 
-      });
-
-      newSocket.on('connection_ack', (data) => {
-        console.log('[SocketIO] Connection Acknowledged:', data.message);
-        handleShowSnackbar(data.message || 'WebSocket Connected!', 'success');
-      });
-      
-      newSocket.on('disconnect', (reason) => {
-        console.log(`[SocketIO] Disconnected from admin dashboard: ${reason}`);
-        if (reason !== 'io client disconnect') { // Avoid snackbar on manual disconnect
-            handleShowSnackbar('WebSocket Disconnected. Attempting to reconnect...', 'warning');
+    if (tokenForSocket) {
+      if (!socketRef.current || socketRef.current.disconnected) { // Connect if no socket or if disconnected
+        console.log("[SocketIO] Attempting to connect/reconnect WebSocket with token...");
+        
+        // If there's an old socket, ensure it's fully cleaned up before creating a new one
+        if (socketRef.current) {
+            socketRef.current.disconnect();
+            socketRef.current.off(); // Remove all listeners
+            socketRef.current = null;
         }
-      });
 
-      newSocket.on('connect_error', (err) => {
-        console.error(`[SocketIO] Connection Error: ${err.message}`, err.data || '');
-        setError(prevError => {
-            const wsErrorMsg = "WebSocket connection failed. Real-time updates may not be available.";
-            return prevError ? `${prevError} ${wsErrorMsg}` : wsErrorMsg;
+        const newSocket = io('http://localhost:5000/ws/admin_dashboard', {
+          query: { token: `Bearer ${tokenForSocket}` },
+          transports: ['websocket'],
+          reconnectionAttempts: 5, // Limit reconnection attempts
+          reconnectionDelay: 3000, // Delay between attempts
         });
-        handleShowSnackbar(`WebSocket Connection Error: ${err.message}`, 'error');
-      });
 
-      newSocket.on('new_student_session_started', handleNewSession);
-      newSocket.on('student_session_ended', handleSessionEnded);
-      newSocket.on('student_session_update', handleSessionUpdate);
-      
-      socketRef.current = newSocket;
-    } else if (!tokenForSocket) {
-      console.warn("[SocketIO] No token found, WebSocket connection not attempted.");
-      const authErrorMsg = "WebSocket connection requires authentication. Please login.";
-      setError(prevError => prevError ? `${prevError} ${authErrorMsg}` : authErrorMsg);
-      handleShowSnackbar(authErrorMsg, 'error');
-    }
+        newSocket.on('connect', () => {
+          console.log(`[SocketIO] Connected to admin dashboard namespace with SID: ${newSocket.id}`);
+          handleShowSnackbar('WebSocket Connected!', 'success');
+        });
 
-    return () => {
+        newSocket.on('connection_ack', (data) => {
+          console.log('[SocketIO] Connection Acknowledged:', data.message);
+        });
+        
+        newSocket.on('disconnect', (reason) => {
+          console.log(`[SocketIO] Disconnected from admin dashboard: ${reason}`);
+          if (reason !== 'io client disconnect' && reason !== 'io server disconnect') { 
+              handleShowSnackbar('WebSocket Disconnected. Will attempt to reconnect.', 'warning');
+          } else {
+              handleShowSnackbar('WebSocket Disconnected.', 'info');
+          }
+        });
+
+        newSocket.on('connect_error', (err) => {
+          console.error(`[SocketIO] Connection Error: ${err.message}`, err.data || '');
+          const wsErrorMsg = `WebSocket connection error: ${err.message}. Real-time updates may be affected.`;
+          setError(prevError => prevError ? `${prevError} ${wsErrorMsg}` : wsErrorMsg);
+          handleShowSnackbar(wsErrorMsg, 'error');
+        });
+
+        newSocket.on('new_student_session_started', handleNewSession);
+        newSocket.on('student_session_ended', handleSessionEnded);
+        newSocket.on('student_session_update', handleSessionUpdate);
+        
+        socketRef.current = newSocket;
+      }
+    } else {
+      console.warn("[SocketIO] No token found, WebSocket connection not attempted or explicitly disconnected.");
       if (socketRef.current) {
-        console.log("[SocketIO] Disconnecting WebSocket on component unmount.");
-        socketRef.current.off('new_student_session_started', handleNewSession);
-        socketRef.current.off('student_session_ended', handleSessionEnded);
-        socketRef.current.off('student_session_update', handleSessionUpdate);
+        console.log("[SocketIO] Disconnecting WebSocket due to missing token.");
         socketRef.current.disconnect();
         socketRef.current = null;
       }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps 
-  }, [currentUser, handleNewSession, handleSessionEnded, handleSessionUpdate]);
+      const authErrorMsg = "WebSocket connection requires authentication. Please login.";
+      if (!error?.includes(authErrorMsg)) { // Show snackbar only if error is not already shown
+        handleShowSnackbar(authErrorMsg, 'error');
+      }
+    }
 
-  if (isLoading) {
+    return () => {
+      if (socketRef.current && socketRef.current.connected) { // Only disconnect if connected
+        console.log("[SocketIO] Cleaning up WebSocket connection on component unmount or token change.");
+        socketRef.current.disconnect(); 
+        socketRef.current = null; // Ensure ref is cleared
+      }
+    };
+  }, [currentUser?.token, handleNewSession, handleSessionEnded, handleSessionUpdate, handleShowSnackbar, error]);
+
+  if (isLoading && !sessions.length) {
     return (
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
