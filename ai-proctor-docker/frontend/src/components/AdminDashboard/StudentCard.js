@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardMedia from '@mui/material/CardMedia';
@@ -7,6 +8,7 @@ import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import { styled } from '@mui/material/styles';
+import CardActionArea from '@mui/material/CardActionArea';
 
 // Placeholder for student avatar if no image is available or for a more generic look
 const StyledAvatar = styled(Avatar)(({ theme }) => ({
@@ -51,56 +53,58 @@ const StudentCard = ({ sessionData }) => {
   const cardBorderStyle = data.unread_alert_count > 0 ? '2px solid' : '1px solid';
 
   return (
-    <Card sx={{ display: 'flex', flexDirection: 'column', height: '100%', border: `${cardBorderStyle} ${cardBorderColor}` }}>
-      <CardMedia
-        component="img"
-        height="140"
-        image={data.last_snapshot_url || 'https://placehold.co/300x200.png?text=Snapshot+Unavailable'}
-        alt={`Snapshot of ${data.student_name}`}
-        sx={{ objectFit: 'cover' }} // Or 'contain' based on desired look
-      />
-      <CardContent sx={{ flexGrow: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-          <StyledAvatar>{data.student_name ? data.student_name.charAt(0).toUpperCase() : 'S'}</StyledAvatar>
-          <Typography variant="h6" component="div" noWrap title={data.student_name}>
-            {data.student_name || 'N/A'}
-          </Typography>
-        </Box>
-        
-        <Chip 
-          label={`Face: ${data.latest_status || 'N/A'}`} 
-          color={getStatusColor(data.latest_status)} 
-          size="small" 
-          sx={{ mb: 0.5, width: '100%', justifyContent: 'flex-start', paddingLeft: '8px' }}
-          avatar={<Avatar sx={{ bgcolor: getStatusColor(data.latest_status) + '.dark', color: 'white', width: 18, height: 18, fontSize: '0.7rem' }}>F</Avatar>}
+    <CardActionArea component={RouterLink} to={`/admin/session/${data.session_id}`} sx={{ textDecoration: 'none', height: '100%' }}>
+      <Card sx={{ display: 'flex', flexDirection: 'column', height: '100%', border: `${cardBorderStyle} ${cardBorderColor}` }}>
+        <CardMedia
+          component="img"
+          height="140"
+          image={data.last_snapshot_url || 'https://placehold.co/300x200.png?text=Snapshot+Unavailable'}
+          alt={`Snapshot of ${data.student_name}`}
+          sx={{ objectFit: 'cover' }} // Or 'contain' based on desired look
         />
-        <Chip 
-          label={`Audio: ${data.latest_audio_event || 'N/A'}`} 
-          color={getAudioStatusColor(data.latest_audio_event)} 
-          size="small" 
-          sx={{ mb: 1, width: '100%', justifyContent: 'flex-start', paddingLeft: '8px' }}
-          avatar={<Avatar sx={{ bgcolor: getAudioStatusColor(data.latest_audio_event) + '.dark', color: 'white', width: 18, height: 18, fontSize: '0.7rem' }}>A</Avatar>}
-        />
+        <CardContent sx={{ flexGrow: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            <StyledAvatar>{data.student_name ? data.student_name.charAt(0).toUpperCase() : 'S'}</StyledAvatar>
+            <Typography variant="h6" component="div" noWrap title={data.student_name}>
+              {data.student_name || 'N/A'}
+            </Typography>
+          </Box>
+          
+          <Chip 
+            label={`Face: ${data.latest_status || 'N/A'}`} 
+            color={getStatusColor(data.latest_status)} 
+            size="small" 
+            sx={{ mb: 0.5, width: '100%', justifyContent: 'flex-start', paddingLeft: '8px' }}
+            avatar={<Avatar sx={{ bgcolor: getStatusColor(data.latest_status) + '.dark', color: 'white', width: 18, height: 18, fontSize: '0.7rem' }}>F</Avatar>}
+          />
+          <Chip 
+            label={`Audio: ${data.latest_audio_event || 'N/A'}`} 
+            color={getAudioStatusColor(data.latest_audio_event)} 
+            size="small" 
+            sx={{ mb: 1, width: '100%', justifyContent: 'flex-start', paddingLeft: '8px' }}
+            avatar={<Avatar sx={{ bgcolor: getAudioStatusColor(data.latest_audio_event) + '.dark', color: 'white', width: 18, height: 18, fontSize: '0.7rem' }}>A</Avatar>}
+          />
 
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Session ID: <Typography component="span" variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{data.session_id?.substring(data.session_id.length - 8) || 'N/A'}</Typography>
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Alerts: {data.unread_alert_count > 0 ? 
-            <Typography component="span" color="error" fontWeight="bold">{data.unread_alert_count}</Typography> : 
-            '0'
-          }
-        </Typography>
-        {data.last_alert_timestamp && data.unread_alert_count > 0 && (
-          <Typography variant="caption" color="text.secondary" display="block">
-            Last alert: {new Date(data.last_alert_timestamp).toLocaleTimeString()}
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            Session ID: <Typography component="span" variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{data.session_id?.substring(data.session_id.length - 8) || 'N/A'}</Typography>
           </Typography>
-        )}
-         <Typography variant="caption" color="text.secondary" display="block">
-            Monitoring since: {new Date(data.monitoring_start_time).toLocaleTimeString()}
+          <Typography variant="body2" color="text.secondary">
+            Alerts: {data.unread_alert_count > 0 ? 
+              <Typography component="span" color="error" fontWeight="bold">{data.unread_alert_count}</Typography> : 
+              '0'
+            }
           </Typography>
-      </CardContent>
-    </Card>
+          {data.last_alert_timestamp && data.unread_alert_count > 0 && (
+            <Typography variant="caption" color="text.secondary" display="block">
+              Last alert: {new Date(data.last_alert_timestamp).toLocaleTimeString()}
+            </Typography>
+          )}
+           <Typography variant="caption" color="text.secondary" display="block">
+              Monitoring since: {new Date(data.monitoring_start_time).toLocaleTimeString()}
+            </Typography>
+        </CardContent>
+      </Card>
+    </CardActionArea>
   );
 };
 
