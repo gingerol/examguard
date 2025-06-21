@@ -20,6 +20,10 @@ import Paper from '@mui/material/Paper';
 import TextField from '@mui/material/TextField';
 import Grid from '@mui/material/Grid';
 import MuiLink from '@mui/material/Link';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
 // Table components will be imported later if needed for the event history table
 // Form components will be imported later if needed for login/register
 
@@ -62,6 +66,8 @@ const AuthPage = ({
   setAuthUsername, 
   authPassword, 
   setAuthPassword, 
+  authRole,
+  setAuthRole,
   setShowRegister, 
   setAuthMessage // Added setAuthMessage to clear on toggle
 }) => {
@@ -101,6 +107,21 @@ const AuthPage = ({
             value={authPassword}
             onChange={(e) => setAuthPassword(e.target.value)}
           />
+          {showRegister && (
+            <FormControl fullWidth margin="normal" required>
+              <InputLabel id="role-select-label">Role</InputLabel>
+              <Select
+                labelId="role-select-label"
+                id="role-select"
+                value={authRole}
+                label="Role"
+                onChange={(e) => setAuthRole(e.target.value)}
+              >
+                <MenuItem value="student">Student</MenuItem>
+                <MenuItem value="admin">Admin</MenuItem>
+              </Select>
+            </FormControl>
+          )}
           <Button
             type="submit"
             fullWidth
@@ -238,7 +259,7 @@ const MainContentComponent = ({
   currentUser,
   determineRedirectPath,
   // Props for AuthPage
-  showRegister, authMessage, handleRegister, handleLogin, authUsername, setAuthUsername, authPassword, setAuthPassword, setShowRegister, setAuthMessage, // Added setAuthMessage
+  showRegister, authMessage, handleRegister, handleLogin, authUsername, setAuthUsername, authPassword, setAuthPassword, authRole, setAuthRole, setShowRegister, setAuthMessage, // Added setAuthMessage
   // Props for StudentMonitorPage
   sessionId, isMonitoring, toggleMonitoring, isTogglingVideo, isSessionStarting, toggleAudioMonitoring, isAudioMonitoring, isTogglingAudio, syncOfflineData, offlineMode, offlineData, webcamRef, status, alerts, activeTab, setActiveTab, fetchEvents, events
 }) => {
@@ -253,6 +274,8 @@ const MainContentComponent = ({
         setAuthUsername={setAuthUsername}
         authPassword={authPassword}
         setAuthPassword={setAuthPassword}
+        authRole={authRole}
+        setAuthRole={setAuthRole}
         setShowRegister={setShowRegister}
         setAuthMessage={setAuthMessage} // Pass setAuthMessage
       />
@@ -342,6 +365,7 @@ function App() {
   const [showRegister, setShowRegister] = useState(false); // Controls visibility of registration form - RESTORED
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
+  const [authRole, setAuthRole] = useState('student'); // Default role
   const [authMessage, setAuthMessage] = useState({ type: '', text: '' });
 
   // NEW: State for session start pending
@@ -1032,13 +1056,14 @@ function App() {
     try {
       await axios.post(`${API_BASE_URL}/api/auth/register`, { 
         username: authUsername, 
-        password: authPassword 
-        // Role defaults to 'student' on the backend
+        password: authPassword,
+        role: authRole
       });
       setAuthMessage({ type: 'success', text: 'Registration successful! Please login.' });
       setShowRegister(false); // Switch to login view
       setAuthUsername(''); // Clear username for login form
       setAuthPassword('');
+      setAuthRole('student'); // Reset role to default
     } catch (error) {
       const errorMsg = error.response?.data?.msg || "Registration failed. Please try a different username or check server.";
       setAuthMessage({ type: 'danger', text: errorMsg });
@@ -1110,6 +1135,8 @@ function App() {
         setAuthUsername={setAuthUsername}
         authPassword={authPassword}
         setAuthPassword={setAuthPassword}
+        authRole={authRole}
+        setAuthRole={setAuthRole}
         setShowRegister={setShowRegister}
         setAuthMessage={setAuthMessage} // Pass setAuthMessage
         // StudentMonitorPage props
