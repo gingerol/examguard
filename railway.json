@@ -2,9 +2,13 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "echo 'Monorepo detected - services should be deployed individually'"
+    "buildCommand": "pip install -r requirements.txt"
   },
   "deploy": {
-    "startCommand": "echo 'This is a monorepo. Deploy ai-proctor-docker/backend and ai-proctor-docker/frontend as separate services.'"
+    "startCommand": "gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app",
+    "healthcheckPath": "/api/health",
+    "healthcheckTimeout": 30,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
   }
 }
