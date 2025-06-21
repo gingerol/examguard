@@ -34,8 +34,14 @@ if not mongo_uri:
     os.environ['MONGO_URI'] = mongo_uri
     print("[RAILWAY WARNING] Using default MongoDB URI - database operations may fail")
 else:
+    # Ensure the URI includes a database name
+    if mongo_uri.endswith('/'):
+        mongo_uri = mongo_uri + 'examguard_production'
+    elif '/' not in mongo_uri.split('@')[-1]:
+        mongo_uri = mongo_uri + '/examguard_production'
+    
     os.environ['MONGO_URI'] = mongo_uri
-    print(f"[RAILWAY INFO] Found MongoDB URI: {mongo_uri[:30]}...")
+    print(f"[RAILWAY INFO] Final MongoDB URI: {mongo_uri[:50]}...")
 
 # Import the actual Flask application
 try:

@@ -28,13 +28,23 @@ class ProductionConfig(Config):
     LOG_LEVEL = 'INFO'
     
     # Use Railway's MongoDB service - try multiple variable names
-    MONGO_URI = (
+    mongo_base_uri = (
         os.getenv('MONGO_URI') or 
         os.getenv('MONGO_PRIVATE_URL') or 
         os.getenv('MONGO_URL') or
-        os.getenv('DATABASE_URL') or
-        'mongodb://localhost:27017/examguard_production'
+        os.getenv('DATABASE_URL')
     )
+    
+    if mongo_base_uri:
+        # Ensure the URI includes a database name
+        if mongo_base_uri.endswith('/'):
+            MONGO_URI = mongo_base_uri + 'examguard_production'
+        elif '/' not in mongo_base_uri.split('@')[-1]:
+            MONGO_URI = mongo_base_uri + '/examguard_production'
+        else:
+            MONGO_URI = mongo_base_uri
+    else:
+        MONGO_URI = 'mongodb://localhost:27017/examguard_production'
     
     # Production CORS - more restrictive
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://examguard-frontend.railway.app')
