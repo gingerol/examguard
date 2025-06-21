@@ -1,3 +1,7 @@
+# IMPORTANT: eventlet monkey_patch must be called before any other imports
+import eventlet
+eventlet.monkey_patch() 
+
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS, cross_origin
 from flask_socketio import SocketIO, emit, join_room, leave_room, disconnect
@@ -14,12 +18,9 @@ from flask_jwt_extended import create_access_token, jwt_required, JWTManager, ge
 import base64 # Added import
 import io # Added import
 import librosa # Added import
-import eventlet # Added eventlet import
 import uuid # NEW: For generating unique alert IDs
 import math # NEW: For pagination (math.ceil)
 from config import get_config
-
-eventlet.monkey_patch() # Recommended for eventlet
 
 app = Flask(__name__)
 

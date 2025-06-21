@@ -42,6 +42,5 @@ COPY . .
 # Expose port that Gunicorn will run on
 EXPOSE 5000
 
-# Temporarily use simple_app.py for debugging Railway deployment
-# Once working, switch back to main.py
-CMD ["python", "simple_app.py"] 
+# Use main.py entry point for the full ExamGuard application
+CMD ["python", "main.py"] 
