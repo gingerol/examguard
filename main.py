@@ -13,12 +13,29 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'ai-proctor-docker', 
 os.environ.setdefault('FLASK_ENV', 'production')
 os.environ.setdefault('JWT_SECRET_KEY', 'railway-production-secret-key-change-me')
 
-# For Railway deployment, MongoDB might not be available initially
-# Set a placeholder URI that won't crash the app during import
-if not os.environ.get('MONGO_URI'):
+# For Railway deployment, debug environment variables
+print("[RAILWAY DEBUG] Checking for MongoDB environment variables:")
+print(f"[RAILWAY DEBUG] MONGO_URI: {'SET' if os.environ.get('MONGO_URI') else 'NOT SET'}")
+print(f"[RAILWAY DEBUG] MONGO_PRIVATE_URL: {'SET' if os.environ.get('MONGO_PRIVATE_URL') else 'NOT SET'}")
+print(f"[RAILWAY DEBUG] MONGO_URL: {'SET' if os.environ.get('MONGO_URL') else 'NOT SET'}")
+print(f"[RAILWAY DEBUG] DATABASE_URL: {'SET' if os.environ.get('DATABASE_URL') else 'NOT SET'}")
+
+# For Railway deployment, ensure MONGO_URI is properly set
+mongo_uri = (
+    os.environ.get('MONGO_URI') or 
+    os.environ.get('MONGO_PRIVATE_URL') or 
+    os.environ.get('MONGO_URL') or
+    os.environ.get('DATABASE_URL')
+)
+
+if not mongo_uri:
     # This is a placeholder - app will handle MongoDB connection errors gracefully
-    os.environ['MONGO_URI'] = 'mongodb://localhost:27017/examguard_production'
+    mongo_uri = 'mongodb://localhost:27017/examguard_production'
+    os.environ['MONGO_URI'] = mongo_uri
     print("[RAILWAY WARNING] Using default MongoDB URI - database operations may fail")
+else:
+    os.environ['MONGO_URI'] = mongo_uri
+    print(f"[RAILWAY INFO] Found MongoDB URI: {mongo_uri[:30]}...")
 
 # Import the actual Flask application
 try:

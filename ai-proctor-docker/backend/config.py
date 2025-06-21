@@ -27,8 +27,14 @@ class ProductionConfig(Config):
     FLASK_ENV = 'production'
     LOG_LEVEL = 'INFO'
     
-    # Use Railway's MongoDB service
-    MONGO_URI = os.getenv('MONGO_PRIVATE_URL', os.getenv('MONGO_URI'))
+    # Use Railway's MongoDB service - try multiple variable names
+    MONGO_URI = (
+        os.getenv('MONGO_URI') or 
+        os.getenv('MONGO_PRIVATE_URL') or 
+        os.getenv('MONGO_URL') or
+        os.getenv('DATABASE_URL') or
+        'mongodb://localhost:27017/examguard_production'
+    )
     
     # Production CORS - more restrictive
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://examguard-frontend.railway.app')
