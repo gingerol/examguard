@@ -42,7 +42,6 @@ COPY . .
 # Expose port that Gunicorn will run on
 EXPOSE 5000
 
-# Define command to run the application using Gunicorn with Eventlet worker for SocketIO
-# Ensure app:socketio correctly points to your SocketIO app instance in app.py
-# The format for Gunicorn with SocketIO is typically app:app, and Gunicorn is made aware of SocketIO via the worker class.
-CMD ["gunicorn", "--workers", "1", "--worker-class", "eventlet", "-b", "0.0.0.0:5000", "app:app"] 
+# Define command to run the application using the main.py entry point
+# This ensures Railway can start the app with proper imports and error handling
+CMD ["python", "main.py"] 
