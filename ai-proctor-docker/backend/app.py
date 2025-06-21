@@ -17,15 +17,28 @@ import librosa # Added import
 import eventlet # Added eventlet import
 import uuid # NEW: For generating unique alert IDs
 import math # NEW: For pagination (math.ceil)
+from config import get_config
 
 eventlet.monkey_patch() # Recommended for eventlet
 
 app = Flask(__name__)
 
-# Simpler global CORS setup first, then can make it more specific if this works.
-# This allows all origins, all headers, all methods for all routes.
-# We can then restrict it once we confirm OPTIONS works.
-CORS(app, origins="*", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "Authorization"], supports_credentials=True, expose_headers=["Content-Type", "Authorization"])
+# Load configuration based on environment
+config = get_config()
+app.config.from_object(config)
+
+# Production-ready CORS setup
+if app.config['FLASK_ENV'] == 'production':
+    # Restrictive CORS for production
+    allowed_origins = [app.config['FRONTEND_URL']]
+    CORS(app, origins=allowed_origins, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
+         allow_headers=["Content-Type", "Authorization"], supports_credentials=True, 
+         expose_headers=["Content-Type", "Authorization"])
+else:
+    # Permissive CORS for development
+    CORS(app, origins="*", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
+         allow_headers=["Content-Type", "Authorization"], supports_credentials=True, 
+         expose_headers=["Content-Type", "Authorization"])
 
 # Old more specific CORS, commented out for now:
 # CORS(app, 
@@ -61,19 +74,12 @@ except OSError as e:
 LOUD_NOISE_DBFS_THRESHOLD = -20.0
 
 # Configure JWT
-app.config["JWT_SECRET_KEY"] = os.environ.get('FLASK_JWT_SECRET_KEY', 'super-secret-dev-key') # Change this in production!
+app.config["JWT_SECRET_KEY"] = app.config['JWT_SECRET_KEY']
 jwt = JWTManager(app)
 
 # Initialize MongoDB client
-# Ensure MONGO_URI is set in your environment variables for Docker
-# mongo_uri = os.environ.get('MONGO_URI', 'mongodb://mongodb:27017/')
-mongo_uri = os.environ.get('MONGO_URI')
-if not mongo_uri:
-    # This will cause the backend to fail loudly on startup if MONGO_URI is not set
-    print("[FATAL ERROR] MONGO_URI environment variable not set!", flush=True)
-    raise RuntimeError("MONGO_URI environment variable not set!")
-else:
-    print(f"[INFO] Attempting to connect to MongoDB with URI: {mongo_uri}", flush=True)
+mongo_uri = app.config['MONGO_URI']
+print(f"[INFO] Attempting to connect to MongoDB with URI: {mongo_uri}", flush=True)
 
 client = MongoClient(mongo_uri)
 # db = client.proctoring_db # Original line

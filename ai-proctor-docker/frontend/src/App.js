@@ -38,6 +38,9 @@ import StudentSessionDetail from './components/AdminDashboard/StudentSessionDeta
 
 /* eslint-disable jsx-a11y/media-has-caption */
 
+// API Configuration
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
 // Define StableWebcam wrapper
 const StableWebcam = React.memo(React.forwardRef((props, ref) => {
   return <Webcam {...props} ref={ref} />;
@@ -401,7 +404,7 @@ function App() {
         if (error.response && error.response.status === 401) {
           // Check if the original request was NOT to the login endpoint
           // to prevent a loop if the login itself fails with 401
-          if (error.config.url !== 'http://localhost:5000/api/auth/login') {
+          if (error.config.url !== `${API_BASE_URL}/api/auth/login`) {
             console.warn('[AxiosAuth] Received 401 Unauthorized for URL:', error.config.url, 'Logging out.');
             // Use a more specific message for token expiry
             setAuthMessage({ type: 'warning', text: 'Your session has expired. Please log in again.' });
@@ -467,7 +470,7 @@ function App() {
 
     try {
       // The backend will generate/confirm the actual session_id
-      const response = await axios.post('http://localhost:5000/api/student/monitoring/start',
+      const response = await axios.post(`${API_BASE_URL}/api/student/monitoring/start`,
         { session_id: localGeneratedSessionId }, // Send the frontend-generated ID as a suggestion or for tracking
         {
           headers: { Authorization: `Bearer ${currentUser.token}` }
@@ -510,7 +513,7 @@ function App() {
         return false; // Indicate failure to stop with backend
     }
     try {
-      await axios.post('http://localhost:5000/api/student/monitoring/stop', 
+      await axios.post(`${API_BASE_URL}/api/student/monitoring/stop`, 
         { session_id: currentSessionId }, // Send the current session_id to the backend
         { headers: { Authorization: `Bearer ${currentUser.token}` } }
       );
@@ -625,7 +628,7 @@ function App() {
       }
 
       // Try to connect to backend, default to localhost:5000 for Docker setup
-      const response = await axios.post('http://localhost:5000/api/analyze-face', formData);
+      const response = await axios.post(`${API_BASE_URL}/api/analyze-face`, formData);
       
       if (response.data.warning_multiple_faces) {
         addAlert(`Warning: ${response.data.warning_multiple_faces}`);
@@ -754,7 +757,7 @@ function App() {
         client_timestamp_utc: clientTimestampUTC
       };
 
-      axios.post('http://localhost:5000/api/analyze-audio', audioDataPayload)
+      axios.post(`${API_BASE_URL}/api/analyze-audio`, audioDataPayload)
         .then(response => {
           console.log('[AudioChunk] Successfully sent audio chunk to backend:', response.data);
         })
@@ -923,7 +926,7 @@ function App() {
         // Add timestamp if your backend can use it for offline records
         // formData.append('client_timestamp_utc', record.timestamp); 
         try {
-            await axios.post('http://localhost:5000/api/analyze-face', formData);
+            await axios.post(`${API_BASE_URL}/api/analyze-face`, formData);
             syncedCount++;
             // Remove successfully synced item from the copy
             const originalIndex = remainingData.findIndex(item => item.timestamp === record.timestamp && item.imageSrc === record.imageSrc);
@@ -974,12 +977,12 @@ function App() {
   const fetchEvents = async () => {
     // if (!sessionId) return; // Removed this check, admin might not have a relevant session_id to filter by initially
     try {
-      let url = 'http://localhost:5000/api/events?limit=100';
+      let url = `${API_BASE_URL}/api/events?limit=100`;
       // For admins, fetch all events unless a specific session_id filter is implemented later
       // For students, it might make sense to only fetch their own session_id if this view were available to them
       // However, current logic hides this tab for students.
       // if (currentUser && currentUser.role !== 'admin' && sessionId) {
-      //   url = `http://localhost:5000/api/events?session_id=${sessionId}&limit=100`;
+      //   url = `${API_BASE_URL}/api/events?session_id=${sessionId}&limit=100`;
       // }
       // For now, admin sees all events. If a filter is added later, this logic will need to adapt.
       const response = await axios.get(url);
@@ -1005,7 +1008,7 @@ function App() {
     e.preventDefault();
     setAuthMessage({ type: '', text: '' });
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', { 
+      const response = await axios.post(`${API_BASE_URL}/api/auth/login`, { 
         username: authUsername, 
         password: authPassword 
       });
@@ -1027,7 +1030,7 @@ function App() {
     e.preventDefault();
     setAuthMessage({ type: '', text: '' });
     try {
-      await axios.post('http://localhost:5000/api/auth/register', { 
+      await axios.post(`${API_BASE_URL}/api/auth/register`, { 
         username: authUsername, 
         password: authPassword 
         // Role defaults to 'student' on the backend

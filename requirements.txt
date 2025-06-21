@@ -1,0 +1,13 @@
+opencv-python
+tensorflow # Consider specific version if known, e.g., tensorflow==2.x
+Flask
+flask-cors
+Flask-SocketIO
+eventlet # Or gevent, for WebSocket server
+gunicorn
+pymongo
+python-dotenv
+numpy # Often a dependency for CV/ML
+# Add dlib if face_landmarks.py from Proctoring-AI requires it. 
+Flask-JWT-Extended
+librosa 

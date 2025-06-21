@@ -1,0 +1,13 @@
+{
+  "name": "examguard-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'Building from monorepo root - use individual services'",
+    "start": "echo 'Start from monorepo root - use individual services'"
+  },
+  "workspaces": [
+    "ai-proctor-docker/frontend",
+    "ai-proctor-docker/backend"
+  ]
+}
