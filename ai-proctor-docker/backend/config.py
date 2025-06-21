@@ -36,13 +36,18 @@ class ProductionConfig(Config):
     )
     
     if mongo_base_uri:
-        # Ensure the URI includes a database name
+        # For Railway MongoDB, use the provided URI with authSource=admin
         if mongo_base_uri.endswith('/'):
-            MONGO_URI = mongo_base_uri + 'examguard_production'
+            MONGO_URI = mongo_base_uri + 'examguard_production?authSource=admin'
         elif '/' not in mongo_base_uri.split('@')[-1]:
-            MONGO_URI = mongo_base_uri + '/examguard_production'
+            # Add database name and auth source
+            MONGO_URI = mongo_base_uri + '/examguard_production?authSource=admin'
+        elif '?' in mongo_base_uri:
+            # URI already has parameters
+            MONGO_URI = mongo_base_uri + '&authSource=admin'
         else:
-            MONGO_URI = mongo_base_uri
+            # URI has database but no parameters
+            MONGO_URI = mongo_base_uri + '?authSource=admin'
     else:
         MONGO_URI = 'mongodb://localhost:27017/examguard_production'
     
