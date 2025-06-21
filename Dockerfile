@@ -42,6 +42,6 @@ COPY . .
 # Expose port that Gunicorn will run on
 EXPOSE 5000
 
-# Define command to run the application using the main.py entry point
-# This ensures Railway can start the app with proper imports and error handling
-CMD ["python", "main.py"] 
+# Temporarily use simple_app.py for debugging Railway deployment
+# Once working, switch back to main.py
+CMD ["python", "simple_app.py"] 
