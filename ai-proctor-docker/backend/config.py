@@ -52,7 +52,7 @@ class ProductionConfig(Config):
         MONGO_URI = 'mongodb://localhost:27017/examguard_production'
     
     # Production CORS - more restrictive
-    FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://examguard-frontend.railway.app')
+    FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://examguard-frontend-production.up.railway.app')
 
 class DevelopmentConfig(Config):
     """Development configuration"""
