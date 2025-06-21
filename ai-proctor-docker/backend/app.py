@@ -121,6 +121,25 @@ active_sessions_store = {}
 # Placeholder for admin SIDs or room (Task 3.4.2)
 admin_dashboard_room = "admin_dashboard_room"
 
+@app.route('/')
+def index():
+    """Root endpoint providing API information"""
+    return jsonify({
+        "message": "ExamGuard AI Proctoring Backend API",
+        "status": "running",
+        "version": "1.0.0",
+        "environment": app.config.get('FLASK_ENV', 'unknown'),
+        "mongodb_connected": mongodb_available,
+        "endpoints": {
+            "health": "/api/health",
+            "auth_register": "/api/auth/register",
+            "auth_login": "/api/auth/login",
+            "student_session": "/api/student/session",
+            "admin_dashboard": "/api/admin/dashboard"
+        },
+        "note": "This is a backend API service. Frontend should be deployed separately."
+    })
+
 @app.route('/api/auth/register', methods=['POST'])
 def register_user():
     data = request.get_json()
