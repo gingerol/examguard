@@ -30,5 +30,13 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Expose port 80 (Nginx default)
 EXPOSE 80
 
-# Start Nginx
-CMD ["nginx", "-g", "daemon off;"] 
+# Add a startup script to handle Railway's PORT environment variable
+RUN echo '#!/bin/sh\n\
+if [ -n "$PORT" ]; then\n\
+  sed -i "s/listen 80;/listen $PORT;/g" /etc/nginx/conf.d/default.conf\n\
+  sed -i "s/listen \\[\\:\\:\\]\\:80;/listen [\\:\\:]\\:$PORT;/g" /etc/nginx/conf.d/default.conf\n\
+fi\n\
+nginx -g "daemon off;"' > /start.sh && chmod +x /start.sh
+
+# Start Nginx with PORT handling
+CMD ["/start.sh"] 
