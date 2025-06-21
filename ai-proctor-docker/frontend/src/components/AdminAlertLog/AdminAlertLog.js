@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
@@ -12,39 +13,29 @@ import TableRow from '@mui/material/TableRow';
 import TablePagination from '@mui/material/TablePagination';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
-import Button from '@mui/material/Button'; // For potential future actions like view snapshot
-import axios from 'axios'; // For API calls
-
-// API Configuration
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-
-// MUI Imports for Filters
+import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
-import Grid from '@mui/material/Grid'; // For layout
-// TODO: Import DatePicker from @mui/x-date-pickers if needed, requires Adapter
-
-// MUI Imports for Modal
+import Grid from '@mui/material/Grid';
 import Modal from '@mui/material/Modal';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardMedia from '@mui/material/CardMedia';
 import IconButton from '@mui/material/IconButton';
+import TableSortLabel from '@mui/material/TableSortLabel';
 import CloseIcon from '@mui/icons-material/Close';
-
-// Date Picker Imports
+import { visuallyHidden } from '@mui/utils';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import formatISO from 'date-fns/formatISO';
 import parseISO from 'date-fns/parseISO';
 
-// MUI Imports for Sorting
-import TableSortLabel from '@mui/material/TableSortLabel';
-import { visuallyHidden } from '@mui/utils'; // For screen reader accessibility with sorting
+// API Configuration
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 // TODO: Import any necessary date formatting libraries or MUI date pickers for filtering
 
