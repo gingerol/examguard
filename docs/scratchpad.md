@@ -4,18 +4,20 @@
 
 **Overall Goal:** Implement Advanced Proctoring Features (Sound Detection, Screen Monitoring, Admin Dashboard, Nested Users) and stabilize the frontend build.
 
-**Current Phase:** Frontend Build Resolution & Admin Multi-Student Dashboard Planning.
+**Current Phase:** Feature Enhancements & Bug Fixing (Batch 1).
 
 **Active Implementation Plans:**
-1.  `docs/implementation-plan/frontend-build-resolution.md` (NEW - Current Focus for Build Issues)
-2.  `docs/implementation-plan/admin-multi-student-dashboard.md` (Planning Phase)
-3.  `docs/implementation-plan/sound-detection.md` (Recent UI refinements completed. Paused for now.)
-4.  `docs/implementation-plan/screen-monitoring.md` (Not started)
-5.  `docs/implementation-plan/nested-user-hierarchy.md` (To be created after admin dashboard)
+1.  `docs/implementation-plan/feature-enhancements-batch-1.md` (Newly Created)
+2.  `docs/implementation-plan/frontend-build-resolution.md` (Completed - Frontend is rendering)
+3.  `docs/implementation-plan/admin-multi-student-dashboard.md` (Planning Phase - some items may be superseded by batch-1)
+4.  `docs/implementation-plan/sound-detection.md` (Recent UI refinements completed. Paused for now.)
+5.  `docs/implementation-plan/screen-monitoring.md` (Not started)
+6.  `docs/implementation-plan/nested-user-hierarchy.md` (To be created after admin dashboard)
 
 **Completed Tasks:**
 *   User Authentication: `docs/implementation-plan/user-authentication.md` (Merged via PR #2)
 *   Sound Detection - Audio Playback & Initial UI: (Considered complete for now, refinements for student view done)
+*   Frontend Build Resolution: `docs/implementation-plan/frontend-build-resolution.md` (Frontend is now rendering)
 
 ## Key Information & Links
 
@@ -42,6 +44,9 @@
 *   **[2025-05-27] React Dev Server Proxy:** For API requests (e.g., `/api/...`) from a React app served by `react-scripts` (webpack dev server) to a separate backend server during development, a `"proxy"` key (e.g., `"proxy": "http://localhost:5000"`) must be added to the frontend's `package.json`. Otherwise, the dev server will attempt to handle these API routes itself, often resulting in `text/html` responses for API calls and incorrect headers (like `x-powered-by: Express`), leading to errors like `NotSupportedError` for media playback. Ensure the dev server is fully restarted after adding this setting.
 *   **[2025-05-27] Port Conflicts with `npm start`:** If the port specified in `PORT=xxxx npm start` (or the default port, usually 3000) is in use, `react-scripts` will typically prompt to use the next available port. Always check the terminal output from `npm start` to confirm the actual port the development server is running on (e.g., `http://localhost:3004` instead of `http://localhost:3003`).
 *   **[2025-05-28] Webpack Polyfill Specificity (`process/browser`):** When providing polyfills for Node.js core modules like `process` in Webpack 5 (via `react-app-rewired` and `config-overrides.js`), some packages (e.g., `axios`) might attempt to import highly specific paths like `process/browser`. A simple fallback for `"process": require.resolve("process/browser")` might not be enough. The error "BREAKING CHANGE: The request 'process/browser' failed to resolve only because it was resolved as fully specified" is a strong indicator. Using `resolve.alias` to explicitly map `'process/browser': require.resolve('process/browser.js')` can be a more robust solution.
+*   **[2025-05-28] `npm audit fix --force`:** When `npm audit` suggests `--force` due to SemVer major changes (e.g., `react-scripts`), it's often necessary to apply it to resolve underlying vulnerabilities, especially if the build is already unstable. Be prepared for potential breaking changes and test thoroughly.
+*   **[2025-05-28] Frontend Port Conflicts:** Always specify a distinct port (e.g., `npm start -- --port 3001`) if the default port (often 3000) is in use or if multiple frontend projects are running. Check terminal output to confirm the actual port used by the dev server.
+*   **[2025-05-28] `sudo` for `rm -rf node_modules`:** If `rm -rf node_modules` fails due to permission errors, `sudo rm -rf node_modules` may be required. However, `npm install` and other `npm` commands should generally *not* be run with `sudo`.
 
 ## Notes & Reminders
 
@@ -49,12 +54,17 @@
 *   Consider using WebSockets for real-time updates on the dashboard.
 
 ## Current Task
-- **Task:** [FRONTEND BUILD] Resolve persistent build errors (`axios` and MUI related).
-- **Status:** Planning phase. New implementation plan created.
-- **Implementation Plan:** [`docs/implementation-plan/frontend-build-resolution.md`](docs/implementation-plan/frontend-build-resolution.md)
+- **Task:** [FEATURE ENHANCEMENTS BATCH 1] Task 1.1 Completed. Executor ready for Task 1.2.
+- **Status:** Task 1.1 (Branching) is complete. The current branch is `feature/feature-enhancements-batch-1`.
+- **Implementation Plan:** [`docs/implementation-plan/feature-enhancements-batch-1.md`](docs/implementation-plan/feature-enhancements-batch-1.md)
 
 ## Detailed Steps (from Implementation Plan)
-*(To be filled by Executor as tasks from the frontend build resolution plan are actioned)*
+**Current focus: Task 1.2 & 1.3 (Admin Dashboard - Active Sessions)**
+*   Task 1.2 (UI): Verify `AdminDashboard.js` correctly displays sessions based on backend data. No immediate code changes identified for client-side filtering; relies on backend for accuracy. Verification pending Task 1.3.
+*   Task 1.3 (API): Reviewed `get_active_dashboard_sessions`. The route itself is likely correct. The core issue, if stale sessions appear, would be in the `active_sessions_store` management (via start/stop student session routes and their WebSocket events). Verification of the full session lifecycle is needed.
+*   Task 1.4 (UI): Clickable session boxes implemented. Navigates to placeholder `/admin/session/:sessionId`.
+*   Task 1.5 (UI): Basic layout for Student Detail Page completed (placeholder `StudentSessionDetail.js` created in Task 1.4 fulfills this).
+*   Next focus: Task 2.1 (Alert Log UI - Initial Cleanup Review).
 
 ## Previous Task (Sound Detection UI Refinements)
 - **Task:** [SOUND DETECTION] UI Refinements for Student View (Button colors, labels, font sizes).
@@ -66,3 +76,9 @@
 
 ## Lessons Learned (New - Add items here as they occur)
 - [2025-05-28] When facing persistent, complex build issues after multiple attempts, switching from an iterative Executor mode to a more structured Planner mode is beneficial to re-evaluate and form a systematic plan.
+- [2025-05-30] If a backend route returns a 500 error without clear tracebacks in the default logs, add comprehensive `try-except` blocks with detailed exception and `traceback.format_exc()` logging directly within the problematic route handler to pinpoint the source of the error.
+- [2025-05-30] Backend logs showing "No <expected_field> in request payload" alongside frontend logs confirming data generation usually points to a key name mismatch between the frontend payload and backend expectation. Double-check exact key names.
+- [2025-05-30] The `ERR_OSSL_EVP_UNSUPPORTED` error during `npm start` on Node.js v17+ with older `react-scripts` (like v3 or v4) can often be resolved by setting the `NODE_OPTIONS=--openssl-legacy-provider` environment variable before the `npm start` command. This was necessary after `npm audit fix --force` downgraded `react-scripts`.
+- [2025-05-30] A blank white screen after `npm start` successfully compiles often indicates severe JavaScript runtime errors, frequently due to module incompatibilities (e.g. after a major dependency downgrade like `react-scripts`). Check browser console for errors.
+*   [2025-05-30] Modern JavaScript syntax (e.g., `??`, `?.`) in `node_modules` packages (like `@mui/base`) might not be transpiled by default by `react-scripts`' Babel configuration, leading to "Module parse failed: Unexpected token" errors. `config-overrides.js` can be used to adjust Babel loader rules to include these packages for transpilation.
+*   [2025-05-30] The `Uncaught ReferenceError: process is not defined` in the browser indicates missing webpack polyfills for Node.js core modules. These need to be configured in `config-overrides.js` (e.g., using `resolve.fallback` and `webpack.ProvidePlugin`).

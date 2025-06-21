@@ -1,0 +1,20 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "services": [
+    {
+      "name": "examguard-backend",
+      "source": "./ai-proctor-docker/backend",
+      "environment": {
+        "FLASK_ENV": "production",
+        "PORT": "8080"
+      }
+    },
+    {
+      "name": "examguard-frontend", 
+      "source": "./ai-proctor-docker/frontend",
+      "environment": {
+        "PORT": "3000"
+      }
+    }
+  ]
+}

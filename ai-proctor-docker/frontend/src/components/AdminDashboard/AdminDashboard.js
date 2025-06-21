@@ -12,6 +12,9 @@ import io from 'socket.io-client';
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
 
+// API Configuration
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
 // Alert component for Snackbar
 const SnackAlert = React.forwardRef(function SnackAlert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
@@ -101,7 +104,7 @@ const AdminDashboard = ({ currentUser }) => {
             setSessions([]); // Clear sessions if auth fails
             return;
         }
-        const response = await axios.get('http://localhost:5000/api/admin/dashboard/active_sessions', {
+        const response = await axios.get(`${API_BASE_URL}/api/admin/dashboard/active_sessions`, {
             headers: { Authorization: `Bearer ${token}` }
         });
         setSessions(response.data || []);
@@ -142,7 +145,7 @@ const AdminDashboard = ({ currentUser }) => {
             socketRef.current = null;
         }
 
-        const newSocket = io('http://localhost:5000/ws/admin_dashboard', {
+        const newSocket = io(`${API_BASE_URL}/ws/admin_dashboard`, {
           query: { token: `Bearer ${tokenForSocket}` },
           transports: ['websocket'],
           reconnectionAttempts: 5, // Limit reconnection attempts

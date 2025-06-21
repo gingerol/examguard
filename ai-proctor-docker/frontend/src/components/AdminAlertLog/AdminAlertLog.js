@@ -15,6 +15,9 @@ import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button'; // For potential future actions like view snapshot
 import axios from 'axios'; // For API calls
 
+// API Configuration
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
 // MUI Imports for Filters
 import TextField from '@mui/material/TextField';
 import Select from '@mui/material/Select';
@@ -108,7 +111,7 @@ const AdminAlertLog = ({ currentUser }) => {
     }
 
     try {
-      const response = await axios.get('http://localhost:5000/api/admin/alerts', {
+      const response = await axios.get(`${API_BASE_URL}/api/admin/alerts`, {
         headers: { Authorization: `Bearer ${currentUser.token}` },
         params: params,
       });
@@ -194,7 +197,7 @@ const AdminAlertLog = ({ currentUser }) => {
     if (alert.snapshot_filename && currentUser && currentUser.token) {
       try {
         const response = await axios.get(
-          `http://localhost:5000/api/admin/snapshots/${alert.snapshot_filename}`,
+          `${API_BASE_URL}/api/admin/snapshots/${alert.snapshot_filename}`,
           {
             headers: { Authorization: `Bearer ${currentUser.token}` },
             responseType: 'blob',

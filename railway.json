@@ -1,20 +1,10 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "services": [
-    {
-      "name": "examguard-backend",
-      "source": "./ai-proctor-docker/backend",
-      "environment": {
-        "FLASK_ENV": "production",
-        "PORT": "8080"
-      }
-    },
-    {
-      "name": "examguard-frontend", 
-      "source": "./ai-proctor-docker/frontend",
-      "environment": {
-        "PORT": "3000"
-      }
-    }
-  ]
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "echo 'Monorepo detected - services should be deployed individually'"
+  },
+  "deploy": {
+    "startCommand": "echo 'This is a monorepo. Deploy ai-proctor-docker/backend and ai-proctor-docker/frontend as separate services.'"
+  }
 }

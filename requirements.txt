@@ -1,0 +1,3 @@
+# This is a monorepo - actual Python dependencies are in ai-proctor-docker/backend/requirements.txt
+# This file helps Railway detect this as a Python project
+flask>=2.0.0
