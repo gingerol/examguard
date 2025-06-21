@@ -37,8 +37,6 @@ import parseISO from 'date-fns/parseISO';
 // API Configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
-// TODO: Import any necessary date formatting libraries or MUI date pickers for filtering
-
 const AdminAlertLog = ({ currentUser }) => {
   const [alerts, setAlerts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
