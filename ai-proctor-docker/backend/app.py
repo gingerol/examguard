@@ -77,21 +77,35 @@ LOUD_NOISE_DBFS_THRESHOLD = -20.0
 app.config["JWT_SECRET_KEY"] = app.config['JWT_SECRET_KEY']
 jwt = JWTManager(app)
 
-# Initialize MongoDB client
+# Initialize MongoDB client with error handling
 mongo_uri = app.config['MONGO_URI']
 print(f"[INFO] Attempting to connect to MongoDB with URI: {mongo_uri}", flush=True)
 
-client = MongoClient(mongo_uri)
-# db = client.proctoring_db # Original line
-# If MONGO_URI includes the database name (e.g., from docker-compose), 
-# client.get_default_database() will use it. Otherwise, you need to specify.
-# Let's use get_default_database() as suggested by the docker-compose comment
-db = client.get_default_database() 
-print(f"[INFO] Connected to MongoDB, selected database: {db.name}", flush=True)
+try:
+    client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)  # 5 second timeout
+    # Test the connection
+    client.admin.command('ping')
+    
+    # If MONGO_URI includes the database name (e.g., from docker-compose), 
+    # client.get_default_database() will use it. Otherwise, you need to specify.
+    # Let's use get_default_database() as suggested by the docker-compose comment
+    db = client.get_default_database() 
+    print(f"[INFO] Connected to MongoDB, selected database: {db.name}", flush=True)
 
-events_collection = db.proctoring_events
-users_collection = db.users
-alerts_collection = db.alerts # NEW: For storing detailed alerts
+    events_collection = db.proctoring_events
+    users_collection = db.users
+    alerts_collection = db.alerts # NEW: For storing detailed alerts
+    
+    mongodb_available = True
+except Exception as e:
+    print(f"[WARNING] MongoDB connection failed: {e}", flush=True)
+    print("[WARNING] App will start but database operations will be disabled", flush=True)
+    client = None
+    db = None
+    events_collection = None
+    users_collection = None
+    alerts_collection = None
+    mongodb_available = False
 
 # Initialize face detection models
 # These will be initialized when the Docker container starts.
@@ -147,9 +161,20 @@ def login_user():
     else:
         return jsonify({"msg": "Bad username or password"}), 401
 
+@app.route('/health', methods=['GET'])
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    return jsonify({"status": "ok", "message": "AI Proctoring system is running"})
+    health_status = {
+        "status": "ok",
+        "message": "AI Proctoring system is running",
+        "mongodb_connected": mongodb_available,
+        "environment": app.config.get('FLASK_ENV', 'unknown')
+    }
+    
+    if not mongodb_available:
+        health_status["warning"] = "MongoDB not available - database operations disabled"
+    
+    return jsonify(health_status)
 
 @app.route('/api/analyze-face', methods=['POST'])
 @jwt_required()
