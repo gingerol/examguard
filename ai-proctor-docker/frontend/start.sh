@@ -1,5 +1,8 @@
 #!/bin/sh
 
+echo "Starting nginx configuration..."
+echo "PORT environment variable: $PORT"
+
 # Handle Railway's dynamic PORT environment variable
 if [ -n "$PORT" ]; then
   echo "Configuring nginx to listen on port $PORT"
@@ -9,5 +12,11 @@ else
   echo "Using default port 80"
 fi
 
-# Start nginx
+echo "Final nginx configuration:"
+cat /etc/nginx/conf.d/default.conf
+
+echo "Testing nginx configuration..."
+nginx -t
+
+echo "Starting nginx..."
 exec nginx -g "daemon off;"
