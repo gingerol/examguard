@@ -324,16 +324,34 @@ const MainContentComponent = ({
 function App() {
   const webcamRef = useRef(null);
 
-  // Attempt to load state from sessionStorage, otherwise use defaults
+  // Attempt to load state from sessionStorage, but validate session integrity
   const [sessionId, setSessionIdInternal] = useState(() => {
     const storedSessionId = sessionStorage.getItem('proctoring_sessionId');
-    // Initialize with a placeholder; this will be updated by startStudentSession
-    return storedSessionId || `session_${new Date().getTime()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Only restore valid backend session IDs, not placeholder frontend IDs
+    if (storedSessionId && !storedSessionId.startsWith('session_')) {
+      return storedSessionId;
+    }
+    // Clear invalid session data and generate new placeholder
+    sessionStorage.removeItem('proctoring_sessionId');
+    sessionStorage.removeItem('proctoring_isMonitoring');
+    sessionStorage.removeItem('proctoring_isAudioMonitoring');
+    console.log('[Session Restore] Invalid or placeholder session detected, clearing stored state');
+    return `session_${new Date().getTime()}_${Math.random().toString(36).substr(2, 9)}`;
   });
 
   const [isMonitoring, setIsMonitoring] = useState(() => {
     const storedIsMonitoring = sessionStorage.getItem('proctoring_isMonitoring');
-    return storedIsMonitoring ? JSON.parse(storedIsMonitoring) : false;
+    const storedSessionId = sessionStorage.getItem('proctoring_sessionId');
+    
+    // Only restore monitoring state if we have a valid backend session ID
+    if (storedIsMonitoring && storedSessionId && !storedSessionId.startsWith('session_')) {
+      console.log('[Session Restore] Restoring valid monitoring state with session:', storedSessionId);
+      return JSON.parse(storedIsMonitoring);
+    }
+    
+    // Clear monitoring state if session is invalid
+    console.log('[Session Restore] Not restoring monitoring state - invalid session');
+    return false;
   });
 
   // eslint-disable-next-line no-unused-vars
@@ -982,12 +1000,17 @@ function App() {
     console.log(`[CaptureIntervalEffect] Evaluating. isMonitoring: ${isMonitoring}, sessionId: ${sessionId}`);
 
     if (isMonitoring) {
-      if (sessionId) {
-        console.log(`[CaptureIntervalEffect] Starting interval for session: ${sessionId}`);
+      // Check if sessionId exists AND is not a frontend placeholder
+      if (sessionId && !sessionId.startsWith('session_')) {
+        console.log(`[CaptureIntervalEffect] Starting interval for valid backend session: ${sessionId}`);
         captureAndAnalyze(); // Initial call
         intervalId = setInterval(captureAndAnalyze, 5000);
       } else {
-        console.warn(`[CaptureIntervalEffect] Monitoring is ON, but sessionId is null/falsy: ${sessionId}. Interval NOT started.`);
+        console.warn(`[CaptureIntervalEffect] Monitoring is ON, but sessionId is invalid or placeholder: ${sessionId}. Stopping monitoring to prevent ghost sessions.`);
+        // Stop monitoring if sessionId is a placeholder - prevents ghost monitoring
+        setIsMonitoring(false);
+        sessionStorage.removeItem('proctoring_isMonitoring');
+        addAlert('Monitoring stopped: No valid backend session found. Please start monitoring properly.', 'warning');
       }
     } else {
       console.log("[CaptureIntervalEffect] Monitoring is OFF. Ensuring interval is cleared.");
@@ -1000,7 +1023,7 @@ function App() {
         clearInterval(intervalId);
       }
     };
-  }, [isMonitoring, sessionId, captureAndAnalyze]); // captureAndAnalyze is memoized
+  }, [isMonitoring, sessionId, captureAndAnalyze, setIsMonitoring, addAlert]); // captureAndAnalyze is memoized
   
   const fetchEvents = async () => {
     // if (!sessionId) return; // Removed this check, admin might not have a relevant session_id to filter by initially
