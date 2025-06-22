@@ -486,11 +486,14 @@ function App() {
   const startStudentSession = async () => {
     if (!currentUser || !currentUser.token) {
       addAlert("Authentication required to start a session.", "error");
+      console.error("[Session Start] No current user or token");
       return;
     }
     setIsSessionStarting(true); // Set starting flag
     const localGeneratedSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     console.log(`[Session Start] Attempting to start student session with frontend-generated ID: ${localGeneratedSessionId}`);
+    console.log(`[Session Start] API_BASE_URL: ${API_BASE_URL}`);
+    console.log(`[Session Start] User token: ${currentUser.token ? 'Present' : 'Missing'}`);
 
     try {
       // The backend will generate/confirm the actual session_id
@@ -500,6 +503,7 @@ function App() {
           headers: { Authorization: `Bearer ${currentUser.token}` }
         }
       );
+      console.log(`[Session Start] Backend response:`, response.data);
       const newSessionIdFromServer = response.data.session_id;
       const monitoringStartTime = response.data.monitoring_start_time;
       console.log(`[Session Start] Backend confirmed session. Frontend ID: ${localGeneratedSessionId}, Backend ID: ${newSessionIdFromServer}, Start Time: ${monitoringStartTime}`);
