@@ -13,7 +13,7 @@ import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
 
 // API Configuration
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://examguard-production-90e5.up.railway.app';
 
 // Alert component for Snackbar
 const SnackAlert = React.forwardRef(function SnackAlert(props, ref) {
