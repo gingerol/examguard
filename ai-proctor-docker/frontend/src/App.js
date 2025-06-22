@@ -45,10 +45,6 @@ import StudentSessionDetail from './components/AdminDashboard/StudentSessionDeta
 // API Configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://examguard-production-90e5.up.railway.app';
 
-// Debug logging
-console.log('[DEBUG] API_BASE_URL:', API_BASE_URL);
-console.log('[DEBUG] REACT_APP_API_URL env var:', process.env.REACT_APP_API_URL);
-
 // Define StableWebcam wrapper
 const StableWebcam = React.memo(React.forwardRef((props, ref) => {
   return <Webcam {...props} ref={ref} />;
@@ -1057,33 +1053,21 @@ function App() {
   const handleRegister = async (e) => {
     e.preventDefault();
     setAuthMessage({ type: '', text: '' });
-    
-    const requestUrl = `${API_BASE_URL}/api/auth/register`;
-    console.log('[DEBUG] Registration URL:', requestUrl);
-    console.log('[DEBUG] Registration data:', { username: authUsername, role: authRole });
-    
     try {
-      const response = await axios.post(requestUrl, { 
+      await axios.post(`${API_BASE_URL}/api/auth/register`, { 
         username: authUsername, 
         password: authPassword,
         role: authRole
       });
-      console.log('[DEBUG] Registration successful:', response.data);
       setAuthMessage({ type: 'success', text: 'Registration successful! Please login.' });
       setShowRegister(false); // Switch to login view
       setAuthUsername(''); // Clear username for login form
       setAuthPassword('');
       setAuthRole('student'); // Reset role to default
     } catch (error) {
-      console.error('[DEBUG] Registration error details:', {
-        url: requestUrl,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        message: error.message
-      });
       const errorMsg = error.response?.data?.msg || "Registration failed. Please try a different username or check server.";
       setAuthMessage({ type: 'danger', text: errorMsg });
+      console.error("Registration error:", error);
     }
   };
 
